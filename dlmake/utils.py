@@ -31,5 +31,14 @@ def get_most_likely_row(tokens: torch.Tensor, mask: torch.Tensor, logits: torch.
     pred_norm = avg_loss.argmin().item()
     return pred_norm
 
+def document_aware_mask(t: torch.Tensor, eos: int) -> torch.Tensor:
+    end_indeces = (t == eos).nonzero(as_tuple=True)
+    seq_ids = torch.zeros_like(t, dtype=torch.long)
+    eos_filter = torch.where(end_indeces[1] != t.shape[1] - 1)[0]
+    end_indeces[1][eos_filter] += 1
+    seq_ids[end_indeces[0][eos_filter], end_indeces[1][eos_filter]] = 1
+    seq_ids = torch.unsqueeze(seq_ids.cumsum(dim=1), 0)
+    return torch.logical_and((seq_ids == seq_ids.T).transpose(0, 1), torch.tril(torch.ones((t.shape[1], t.shape[1]), dtype=t.dtype, device=t.device)))
+
 
 __all__ = ["Logger", "get_most_likely_row"]

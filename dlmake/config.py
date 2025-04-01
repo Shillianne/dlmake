@@ -1,5 +1,5 @@
 from typing import Literal, Type, Union, List, Dict, Any, Optional
-from torch.optim import AdamW
+from torch.optim import AdamW, Optimizer
 import torch.nn as nn
 import json
 
@@ -19,6 +19,7 @@ class Config:
                  dropout_prob: float = 0.0,
                  optimizer = AdamW,
                  flash: bool = False,
+                 doc_aware: bool = False,
                  verbose: bool = True,
                  compile: bool = False,
                  checkpoint_rate: int = 10,
@@ -26,7 +27,7 @@ class Config:
                  validation_rate: Optional[int] = None,
                  benchmark_rate: Optional[int] = None,
                  new: bool = True,
-                 time_precision: Literal['s', 'ms'] = 'ms') -> None:
+                 time_precision: Literal['s', 'ms'] = 'ms'):
         self.ctx_size = ctx_size
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
@@ -39,6 +40,7 @@ class Config:
         self.dropout_prob = dropout_prob
         self.optimizer = optimizer
         self.flash = flash
+        self.doc_aware: bool = doc_aware
         self.verbose = verbose
         self.compile = compile
         self.checkpoint_rate = checkpoint_rate
@@ -54,9 +56,10 @@ class Config:
             config = json.load(f)
         params = ["ctx_size", "vocab_size", "embed_dim", "batch_size", "nhead", "nlayers",
                   "bias", "nlinear", "nlinear_params", "dropout_prob", "optimizer",
-                  "flash", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
+                  "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
                   "benchmark_rate", "new", "time_precision"]
-        defaults = [64, 256, 1, 1, 1, 1, True, nn.ReLU, [], 0.0, AdamW, False, True, False, 10, False, None, None, True, 'ms']
+        default_types = [int, int, int, int, int, int, bool, nn.Module, list, float, Optimizer, bool, bool, bool, bool, int, bool, (None.__class__, int), (None.__class__, int), bool, str]
+        defaults = [64, 256, 1, 1, 1, 1, True, nn.ReLU, [], 0.0, AdamW, False, False, True, False, 10, False, None, None, True, 'ms']
         defined = []
         values = {}
         for i, (param, value) in enumerate(config.items()):
@@ -77,8 +80,9 @@ class Config:
                 else:
                     exec(f"values[{param}] = nn.{value}")
             else:
-                if not isinstance(value, type(defaults[i])):
-                    raise TypeError(f"The type of argument '{param}' conficts with the expected type ({type(defaults[i])}).")
+                # print(param, value, params.index(param), defaults[params.index(param)], default_types[params.index(param)])
+                if not issubclass(value.__class__, default_types[params.index(param)]):
+                    raise TypeError(f"The type of argument '{param}' conficts with the expected type ({type(default_types[params.index(param)])}).")
                 values[param] = value
             defined.append(param)
         for param in set(tuple(params)).difference(set(tuple(defined))):

@@ -31,7 +31,7 @@ class BaseDataLoader(ABC):
         return self
 
     @abstractmethod
-    def __next__(self) -> Tuple[torch.Tensor]:
+    def __next__(self) -> Tuple[torch.Tensor, ...]:
         """
         Iterates through the data to feed to the model.
         Returns the inputs to the model in the first positions and the expected outputs of the model in the last position.

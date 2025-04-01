@@ -1,4 +1,4 @@
-from transformer.tokenization import Tokenizer
+from .transformer.tokenization import Tokenizer
 from tiktoken import Encoding
 from typing import Union
 import torch

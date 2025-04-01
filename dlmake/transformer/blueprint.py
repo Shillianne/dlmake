@@ -1,21 +1,27 @@
-import torch
-import torch.nn as nn
+from abc import ABC, abstractmethod, ABCMeta
 from dlmake import Config
-from .blocks import DecoderBlock
+import torch.nn as nn
 import inspect
+import torch
 
-class GPT(nn.Module):
-    def __init__(self, config: Config):
-        super(GPT, self).__init__()
-        self.config = config
-        
-        self.word_embeddings = nn.Embedding(config.vocab_size, config.embed_dim)
-        self.position_encodings = nn.Embedding(config.ctx_size, config.embed_dim)
-        self.blocks = nn.ModuleList([DecoderBlock(config) for _ in range(config.nlayers)])
-        self.class_layer = nn.Linear(in_features=config.embed_dim, out_features=config.vocab_size, bias=False)
-        self.word_embeddings.weight = self.class_layer.weight
+class TransformerMeta(ABCMeta, type):
+    def __new__(cls, clsname: str, bases: tuple, attrs: dict):
+        if nn.Module in bases:
+            return type.__new__(cls, clsname, bases, attrs)
+        if "__init__" not in attrs.keys():
+            raise AttributeError("An __init__ method needs to be present within the '" + clsname + "' class")
+        init = attrs["__init__"]
+        def new_init(self, *args):
+            init(self, *args)
+            self.apply(self._init_weights)
+        attrs["__init__"] = new_init
+        return super(TransformerMeta, cls).__new__(cls, clsname, bases, attrs)
+            
 
-        self.apply(self._init_weights)
+class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
+    def __init__(self, *args):
+        super(Transformer, self).__init__()
+        self.config = args[0]
 
     def _init_weights(self, module: nn.Module):
         if isinstance(module, nn.Linear):
@@ -28,28 +34,18 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, x: torch.Tensor):
-        _, T = x.shape
-        assert T <= self.config.ctx_size, f"The provided tensor has a length longer than the context size of the model. Received ({T}), max ({self.config.ctx_size})."
-
-        pos_embeds = self.position_encodings(x)
-        tok_embeds = self.word_embeddings(x)
-        x = tok_embeds + pos_embeds
-
-        for block in self.blocks:
-            x = block(x)
-        x = self.ln(x)
-        logits = self.class_layer(x)
-        return logits
+    @abstractmethod
+    def forward(self, *args) -> torch.Tensor:
+        pass
     
-    def configure_parameters(self, weight_decay: float, lr: float, device: str):
+    def configure_parameters(self, weight_decay: float, lr: float, device: str) -> torch.optim.Optimizer:
         param_dict = {name: param for name, param in self.named_parameters()}
         param_dict = {name: param for name, param in param_dict.items() if param.requires_grad}
         decay_params = [p for p in param_dict.values() if p.dim() >= 2]
         no_decay_params = [p for p in param_dict.values() if p.dim() < 2]
         optim_groups = [
-                {"param": decay_params, "weight_decay": weight_decay},
-                {"param": no_decay_params, "weight_decay": 0.0}
+                {"params": decay_params, "weight_decay": weight_decay},
+                {"params": no_decay_params, "weight_decay": 0.0}
         ]
         num_decayed_params = sum(p.numel() for p in decay_params)
         num_no_decayed_params = sum(p.numel() for p in no_decay_params)
