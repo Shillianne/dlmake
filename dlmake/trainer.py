@@ -148,8 +148,10 @@ class SaveOptions:
                 {"Loss and accuracy results from training": os.path.join(self.savepath, "results.png")}
             ]
         }
-        if (final := trainer.max_epochs == epoch - 1):
+        final = False
+        if trainer.max_epochs - 1 == epoch:
             self.save_image(trainer)
+            final = True
         content = self.replace_template(SaveOptions.readme_blueprint, data, final)
         with open(os.path.join(self.savepath, "README.md"), "w") as f:
             f.write(content)
@@ -204,7 +206,6 @@ class Trainer:
 
         self.ddp = int(os.environ.get("RANK", -1)) != -1
         self.config = config
-        self.savepath = savepath
         self.benchmarks = benchmarks
         self.lr_scheduler: Callable = lr_schedule
         self.verbose = config.verbose
@@ -262,7 +263,7 @@ class Trainer:
                                          world_size=self.ddp_world_size)
         self.model = model
         self.save_options = SaveOptions(savepath, config, False)
-        if os.path.exists(os.path.join(self.savepath, 'snapshot.pth')) and not self.config.new:
+        if os.path.exists(os.path.join(self.save_options.savepath, 'snapshot.pth')) and not self.config.new:
             self.save_options.load(self)
         else:
             self.model.to(self.device)

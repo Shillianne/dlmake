@@ -71,14 +71,14 @@ class Config:
                 except Exception as e:
                     raise e
                 else:
-                    exec(f"values[{param}] = {value}")
+                    exec(f"values['{param}'] = {value}")
             elif param == "nlinear":
                 try:
                     exec(f"nn.{value}")
                 except Exception as e:
                     raise e
                 else:
-                    exec(f"values[{param}] = nn.{value}")
+                    exec(f"values['{param}'] = nn.{value}")
             else:
                 # print(param, value, params.index(param), defaults[params.index(param)], default_types[params.index(param)])
                 if not issubclass(value.__class__, default_types[params.index(param)]):
