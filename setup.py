@@ -7,7 +7,7 @@ setup(
     description="A package that groups all necesities for training and evaluating Neural Networks",
     packages=find_packages(),
     install_requires=[
-        "matplotlib==3.10.1", "tiktoken==0.8.0", "torchaudio==2.5.1+cu121", "torchmetrics==1.6.1", "torchvision==0.20.1+cu121"
+        "matplotlib==3.10.1", "tiktoken==0.8.0", "torchaudio==2.5.1", "torchmetrics==1.6.1", "torchvision==0.20.1"
     ],
     python_requires=">=3.12.0",
     keywords=["Python", "Machine Learning"],
