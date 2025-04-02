@@ -56,7 +56,7 @@ class SaveOptions:
                     raise ValueError(f"Wrong number of elements for {columns} columns. Got {len(items)}")
                 rows += "| " + " | ".join([str(v) for v in items]) + " |\n"
             template = template.replace(table, rows)
-        numbers: list[str] = re.findall(r'<[0-9]*', template)
+        numbers: list[str] = re.findall(r'<[0-9]*>', template)
         for number in numbers:
             index = int(number.replace('<', '').replace('>', ''))
             assert len(data["number"]) >= index, "Provided values (number) do not match the expected information on the template"
