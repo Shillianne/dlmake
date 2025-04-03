@@ -7,14 +7,81 @@ from dlmake import Config, BaseDataLoader
 from torchmetrics import Accuracy
 from .benchmark import Benchmark
 import torch.distributed as dist
-from datetime import timedelta
-import torch.nn as nn
 import matplotlib.pyplot as plt 
+from datetime import timedelta
+from torch.types import Number
+import torch.nn as nn
 import inspect
 import torch
 import time
 import os
 import re
+
+def progress_factory(
+        train_progress: bool = False,
+        model_progress: bool = False,
+        lr: bool = False,
+        norm: bool = False,
+        mfu: bool = False,
+        time: bool = False,
+        tok: bool = False,
+        eta: bool = False):
+    parameters: list[inspect.Parameter] = []
+
+    if train_progress:
+        parameters.append(inspect.Parameter("epoch", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+        parameters.append(inspect.Parameter("total_epochs", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+    if model_progress:
+        parameters.append(inspect.Parameter("cur_model", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+        parameters.append(inspect.Parameter("total_models", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+    if lr:
+        parameters.append(inspect.Parameter("lr", inspect.Parameter.KEYWORD_ONLY, annotation=float))
+    if norm:
+        parameters.append(inspect.Parameter("norm", inspect.Parameter.KEYWORD_ONLY, annotation=float))
+    if mfu:
+        parameters.append(inspect.Parameter("mfu", inspect.Parameter.KEYWORD_ONLY, annotation=float))
+    if time:
+        parameters.append(inspect.Parameter("time", inspect.Parameter.KEYWORD_ONLY, annotation=float))
+        parameters.append(inspect.Parameter("scale", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+    if tok:
+        parameters.append(inspect.Parameter("tokens", inspect.Parameter.KEYWORD_ONLY, annotation=float))
+    if eta:
+        parameters.append(inspect.Parameter("eta", inspect.Parameter.KEYWORD_ONLY, annotation=float))
+
+    sig = inspect.Signature(parameters)
+
+    def inner(loss: torch.Tensor | Number, acc: torch.Tensor | Number, **kwargs):
+        blocks = []
+        if model_progress and "cur_model" in kwargs.keys() and "total_models" in kwargs.keys():
+            blocks.append(f"[{kwargs['cur_model']}/{kwargs['total_models']}]")
+        if train_progress and "epoch" in kwargs.keys() and "total_epochs" in kwargs.keys():
+            blocks.append(f"[{kwargs['epoch']}/{kwargs['total_epochs']}]")
+        blocks.append(f"Average Loss: {loss:.3f}")
+        blocks.append(f"Average Accuracy: {(acc * 100):.2f}%")
+        if lr and "lr" in kwargs.keys():
+            blocks.append(f"lr: {kwargs['lr']:.3e}")
+        if norm and "norm" in kwargs.keys():
+            blocks.append(f"Model Norm: {kwargs['norm']:.4f}")
+        if mfu and "mfu" in kwargs.keys():
+            blocks.append(f"MFU: {(kwargs['mfu'] * 100):.2f}%")
+        if time and "time" in kwargs.keys() and "scale" in kwargs.keys():
+            blocks.append(f"dt: {(kwargs['time'] * kwargs['scale']):.2f} {'s' if kwargs['scale'] == 1 else 'ms'}")
+        if tok and "tokens" in kwargs.keys():
+            blocks.append(f"tok/sec: {kwargs['tokens']:.2f}")
+        if eta and "eta" in kwargs.keys():
+            time_format = str(timedelta(seconds=kwargs['eta']))
+            d, h, m, s = "", "", "", ""
+            if "day" in time_format:
+                d = time_format.split(", ")[0].split(" ")[0]
+                h, m, s = time_format.split(", ")[1].split(":")
+                m, s = m.lstrip('0'), s.lstrip('0')
+            else:
+                h, m, s = time_format.split(":")
+            blocks.append(f"ETA: {'' if d == '' else d + ' days '}{h} h {m} min {s} s")
+        return " | ".join(blocks)
+
+    inner.__annotations__ = {param.name: param.annotation for param in parameters if param.annotation}
+    return inner
 
 class SaveOptions:
     readme_blueprint = (
@@ -73,14 +140,14 @@ class SaveOptions:
 
     def save_image(self, trainer: "Trainer"):
         fig, axes = plt.subplots(1, 2, figsize=(18, 8))
-        axes[0].plot(torch.arange(0, len(trainer.loss_history)), trainer.loss_history, label="Training Loss", c="royalblue")
-        axes[0].plot(torch.arange(0, len(trainer.val_loss)), trainer.val_loss, label="Validation Loss", c="orangered")
+        axes[0].plot(torch.arange(0, len(trainer.loss_history)), [t.cpu() for t in trainer.loss_history], label="Training Loss", c="royalblue")
+        axes[0].plot(torch.arange(0, len(trainer.val_loss)), [t.cpu() for t in trainer.val_loss], label="Validation Loss", c="orangered")
         axes[0].set_title("Loss over time")
         axes[0].set_xlabel("Epochs")
         axes[0].set_ylabel("Loss")
         axes[0].legend()
-        axes[1].plot(torch.arange(0, len(trainer.acc_history)), trainer.acc_history, label="Training Accuracy", c="royalblue")
-        axes[1].plot(torch.arange(0, len(trainer.val_acc)), trainer.val_acc, label="Validation Accuracy", c="orangered")
+        axes[1].plot(torch.arange(0, len(trainer.acc_history)), [t.cpu() for t in trainer.acc_history], label="Training Accuracy", c="royalblue")
+        axes[1].plot(torch.arange(0, len(trainer.val_acc)), [t.cpu() for t in trainer.val_acc], label="Validation Accuracy", c="orangered")
         axes[1].set_title("Accuracy over time")
         axes[1].set_xlabel("Epochs")
         axes[1].set_ylabel("Accuracy")
@@ -200,7 +267,9 @@ class Trainer:
                  benchmarks: List[Benchmark],
                  step: int = 0,
                  tokens_per_batch: int = 0,
-                 logger: Optional[Logger] = None)-> None:
+                 logger: Optional[Logger] = None,
+                 model_index: int = 1,
+                 max_models: int = 1)-> None:
 
         num_classes = config.vocab_size
         T = config.ctx_size
@@ -219,6 +288,10 @@ class Trainer:
         self.norm_history: list[torch.Tensor] = []
         self.val_loss: list[torch.Tensor] = []
         self.val_acc: list[torch.Tensor] = []
+        self.m_index = model_index
+        self.models = max_models
+        self.val_print_f = progress_factory()
+        self.train_print_f = progress_factory(model_progress=max_models > 1, train_progress=True, lr=True, norm=True, mfu=True, time=True, tok=True, eta=True)
         for benchmark in self.benchmarks:
             setattr(self, f"{benchmark}_acc", [])
         self.t = 1
@@ -315,7 +388,7 @@ class Trainer:
                     if self.ddp:
                         dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
                     if self.master_process:
-                        self.logger(f"Validation loss: {val_loss.item():.3f} | Validation accuracy: {(val_acc.item() * 100):.3f}%")
+                        self.logger(self.val_print_f(loss=val_loss.item(), acc=val_acc.item()))
 
             # if self.benchmarks and (epoch % self.benchmark_rate == 0 or last_epoch):
             #     self._validate_benchmarks()
@@ -354,21 +427,11 @@ class Trainer:
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             acc_time += dt
             seconds = ((epochs * acc_time) / (epoch + 1)) - acc_time  # expectation - evidence
-            time_format = str(timedelta(seconds=seconds))
-            d, h, m, s = "", "", "", ""
-            if "day" in time_format:
-                d = time_format.split(", ")[0].split(" ")[0]
-                h, m, s = time_format.split(", ")[1].split(":")
-                m, s = m.lstrip('0'), s.lstrip('0')
-            else:
-                h, m, s = time_format.split(":")
-                m, s = m.lstrip('0'), s.lstrip('0')
 
             accs /= (total + 1)
             if self.verbose and self.master_process:
-                self.logger(f"[{epoch + 1}/{epochs}] | Average Loss: {losses:.3f} | Average Accuracy: {(accs * 100):.2f}% | lr: {lr:.3e} | Model Norm: {norm:.4f}"\
-                      f" | MFU: {running_mfu * 100:.2f}% | dt: {(dt * self.t):.2f} {'s' if self.t == 1 else 'ms'} | tok/sec: {tok_per_sec:.2f}"\
-                      f" | ETA: {'' if d == '' else d + ' days '}{h} h {m} min {s} s")
+                self.logger(self.train_print_f(loss=losses, acc=accs, epoch=epoch + 1, total_epochs=epochs, cur_model=self.m_index, total_models=self.models,
+                                               lr=lr, norm=norm, mfu=running_mfu, time=dt, scale=self.t, tokens=tok_per_sec, eta=seconds))
             self.loss_history.append(losses)
             self.acc_history.append(accs)
             self.norm_history.append(norm)
