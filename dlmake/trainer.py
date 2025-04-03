@@ -7,6 +7,7 @@ from dlmake import Config, BaseDataLoader
 from torchmetrics import Accuracy
 from .benchmark import Benchmark
 import torch.distributed as dist
+from datetime import timedelta
 import torch.nn as nn
 import matplotlib.pyplot as plt 
 import inspect
@@ -285,6 +286,7 @@ class Trainer:
         assert self.step < epochs, "Training was already completed for the requested number of epochs"
         self.max_epochs = epochs
         running_mfu = -1.0
+        acc_time = 0.
 
         for epoch in range(epochs):
             start = time.time()
@@ -350,11 +352,23 @@ class Trainer:
             tok_per_sec = (self.train_loader.B * self.train_loader.T * self.train_loader.limit * self.ddp_world_size) / dt
             mfu = self.model.estimate_mfu(self.batch_size * self.train_loader.limit, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
+            acc_time += dt
+            seconds = ((epochs * acc_time) / (epoch + 1)) - acc_time  # expectation - evidence
+            time_format = str(timedelta(seconds=seconds))
+            d, h, m, s = "", "", "", ""
+            if "day" in time_format:
+                d = time_format.split(", ")[0].split(" ")[0]
+                h, m, s = time_format.split(", ")[1].split(":")
+                m, s = m.lstrip('0'), s.lstrip('0')
+            else:
+                h, m, s = time_format.split(":")
+                m, s = m.lstrip('0'), s.lstrip('0')
 
             accs /= (total + 1)
             if self.verbose and self.master_process:
                 self.logger(f"[{epoch + 1}/{epochs}] | Average Loss: {losses:.3f} | Average Accuracy: {(accs * 100):.2f}% | lr: {lr:.3e} | Model Norm: {norm:.4f}"\
-                      f" | MFU: {running_mfu * 100:.2f}% | dt: {(dt * self.t):.2f} {'s' if self.t == 1 else 'ms'} | tok/sec: {tok_per_sec:.2f}")
+                      f" | MFU: {running_mfu * 100:.2f}% | dt: {(dt * self.t):.2f} {'s' if self.t == 1 else 'ms'} | tok/sec: {tok_per_sec:.2f}"\
+                      f" | ETA: {'' if d == '' else d + ' days '}{h} h {m} min {s} s")
             self.loss_history.append(losses)
             self.acc_history.append(accs)
             self.norm_history.append(norm)
