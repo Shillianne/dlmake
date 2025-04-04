@@ -141,13 +141,15 @@ class SaveOptions:
     def save_image(self, trainer: "Trainer"):
         fig, axes = plt.subplots(1, 2, figsize=(18, 8))
         axes[0].plot(torch.arange(0, len(trainer.loss_history)), [t.cpu() for t in trainer.loss_history], label="Training Loss", c="royalblue")
-        axes[0].plot(torch.arange(0, len(trainer.val_loss)), [t.cpu() for t in trainer.val_loss], label="Validation Loss", c="orangered")
+        if trainer.config.validation_rate is not None:
+            axes[0].plot(torch.arange(0, trainer.max_epochs, trainer.config.validation_rate - 1), [t.cpu() for t in trainer.val_loss], label="Validation Loss", c="orangered")
         axes[0].set_title("Loss over time")
         axes[0].set_xlabel("Epochs")
         axes[0].set_ylabel("Loss")
         axes[0].legend()
         axes[1].plot(torch.arange(0, len(trainer.acc_history)), [t.cpu() for t in trainer.acc_history], label="Training Accuracy", c="royalblue")
-        axes[1].plot(torch.arange(0, len(trainer.val_acc)), [t.cpu() for t in trainer.val_acc], label="Validation Accuracy", c="orangered")
+        if trainer.config.validation_rate is not None:
+            axes[1].plot(torch.arange(0, trainer.max_epochs, trainer.config.validation_rate - 1), [t.cpu() for t in trainer.val_acc], label="Validation Accuracy", c="orangered")
         axes[1].set_title("Accuracy over time")
         axes[1].set_xlabel("Epochs")
         axes[1].set_ylabel("Accuracy")
@@ -213,7 +215,7 @@ class SaveOptions:
                 trainer.max_epochs
             ],
             "img": [
-                {"Loss and accuracy results from training": os.path.join(self.savepath, "results.png")}
+                {"Loss and accuracy results from training": "results.png"}
             ]
         }
         final = False
