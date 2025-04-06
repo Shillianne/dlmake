@@ -5,6 +5,17 @@ import json
 
 Module = Type[nn.Module]
 
+progress_base = {
+    "train_progress": False,
+    "model_progress": False,
+    "lr": False,
+    "norm": False,
+    "mfu": False,
+    "time": False,
+    "tok": False,
+    "eta": False
+}
+
 class Config:
     def __init__(self,
                  ctx_size: int = 64,
@@ -17,6 +28,8 @@ class Config:
                  nlinear: Module = nn.ReLU,
                  nlinear_params: Union[List[Any], Dict[str, Any]] = [],
                  dropout_prob: float = 0.0,
+                 max_lr: float = 1e-3,
+                 min_lr: float = 1e-6,
                  optimizer = AdamW,
                  flash: bool = False,
                  doc_aware: bool = False,
@@ -26,8 +39,11 @@ class Config:
                  use_val: bool = False,
                  validation_rate: Optional[int] = None,
                  benchmark_rate: Optional[int] = None,
+                 train_epochs: int = 12000,
                  new: bool = True,
-                 time_precision: Literal['s', 'ms'] = 'ms'):
+                 time_precision: Literal['s', 'ms'] = 'ms',
+                 val_progress_config: dict[str, bool] = progress_base,
+                 train_progress_config: dict[str, bool] = progress_base):
         self.ctx_size = ctx_size
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
@@ -38,6 +54,8 @@ class Config:
         self.nlinear = nlinear
         self.nlinear_params = nlinear_params
         self.dropout_prob = dropout_prob
+        self.max_lr = max_lr
+        self.min_lr = min_lr
         self.optimizer = optimizer
         self.flash = flash
         self.doc_aware: bool = doc_aware
@@ -47,19 +65,23 @@ class Config:
         self.use_val = use_val
         self.validation_rate = validation_rate
         self.benchmark_rate = benchmark_rate
+        self.train_epochs = train_epochs
         self.new = new
         self.time_precision = time_precision
+        self.val_progress_config = val_progress_config
+        self.train_progress_config = train_progress_config
 
     @classmethod
     def from_json(cls, filename: str) -> "Config":
         with open(filename, "r") as f:
             config = json.load(f)
         params = ["ctx_size", "vocab_size", "embed_dim", "batch_size", "nhead", "nlayers",
-                  "bias", "nlinear", "nlinear_params", "dropout_prob", "optimizer",
+                  "bias", "nlinear", "nlinear_params", "dropout_prob", "max_lr", "min_lr", "optimizer",
                   "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
-                  "benchmark_rate", "new", "time_precision"]
-        default_types = [int, int, int, int, int, int, bool, nn.Module, list, float, Optimizer, bool, bool, bool, bool, int, bool, (None.__class__, int), (None.__class__, int), bool, str]
-        defaults = [64, 256, 1, 1, 1, 1, True, nn.ReLU, [], 0.0, AdamW, False, False, True, False, 10, False, None, None, True, 'ms']
+                  "benchmark_rate", "train_epochs", "new", "time_precision", "val_progress_config", "train_progress_config"]
+        default_types = [int, int, int, int, int, int, bool, nn.Module, list, float, float, float, Optimizer, bool, bool, bool,
+                         bool, int, bool, (None.__class__, int), (None.__class__, int), int, bool, str, dict, dict]
+        defaults = [64, 256, 1, 1, 1, 1, True, nn.ReLU, [], 0.0, 1e-3, 1e-6, AdamW, False, False, True, False, 10, False, None, None, 12000, True, 'ms', progress_base, progress_base]
         defined = []
         values = {}
         for i, (param, value) in enumerate(config.items()):

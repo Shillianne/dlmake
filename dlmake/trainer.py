@@ -292,8 +292,9 @@ class Trainer:
         self.val_acc: list[torch.Tensor] = []
         self.m_index = model_index
         self.models = max_models
-        self.val_print_f = progress_factory()
-        self.train_print_f = progress_factory(model_progress=max_models > 1, train_progress=True, lr=True, norm=True, mfu=True, time=True, tok=True, eta=True)
+        self.val_print_f = progress_factory(**self.config.val_progress_config)
+        self.train_print_f = progress_factory(**self.config.train_progress_config)
+        self.max_epochs = self.config.train_epochs
         for benchmark in self.benchmarks:
             setattr(self, f"{benchmark}_acc", [])
         self.t = 1
@@ -356,16 +357,15 @@ class Trainer:
         self.accuracy = Accuracy(task='multiclass', num_classes=num_classes)
         self.accuracy.to(self.device)
 
-    def train(self, epochs: int) -> None:
-        assert epochs >= self.config.checkpoint_rate
-        assert self.step < epochs, "Training was already completed for the requested number of epochs"
-        self.max_epochs = epochs
+    def train(self) -> None:
+        assert self.max_epochs >= self.config.checkpoint_rate
+        assert self.step < self.max_epochs, "Training was already completed for the requested number of epochs"
         running_mfu = -1.0
         acc_time = 0.
 
-        for epoch in range(epochs):
+        for epoch in range(self.max_epochs):
             start = time.time()
-            last_epoch = (epoch == epochs - 1)
+            last_epoch = (epoch == self.max_epochs - 1)
 
             if (epoch % self.validation_rate == 0 or last_epoch) and self.config.use_val:
                 self.model.eval()
@@ -428,11 +428,11 @@ class Trainer:
             mfu = self.model.estimate_mfu(self.batch_size * self.train_loader.limit, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             acc_time += dt
-            seconds = ((epochs * acc_time) / (epoch + 1)) - acc_time  # expectation - evidence
+            seconds = ((self.max_epochs * acc_time) / (epoch + 1)) - acc_time  # expectation - evidence
 
             accs /= (total + 1)
             if self.verbose and self.master_process:
-                self.logger(self.train_print_f(loss=losses, acc=accs, epoch=epoch + 1, total_epochs=epochs, cur_model=self.m_index, total_models=self.models,
+                self.logger(self.train_print_f(loss=losses, acc=accs, epoch=epoch + 1, total_epochs=self.max_epochs, cur_model=self.m_index, total_models=self.models,
                                                lr=lr, norm=norm, mfu=running_mfu, time=dt, scale=self.t, tokens=tok_per_sec, eta=seconds))
             self.loss_history.append(losses)
             self.acc_history.append(accs)
@@ -441,7 +441,7 @@ class Trainer:
             if epoch % self.config.checkpoint_rate == 0 and self.master_process:
                 self.save_options.save(self.model, self, epoch)
         if self.master_process:
-            self.save_options.save(self.model, self, epochs - 1)
+            self.save_options.save(self.model, self, self.max_epochs - 1)
         if self.ddp:
             destroy_process_group()
 
