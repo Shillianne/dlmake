@@ -10,12 +10,14 @@ class BaseDataLoader(ABC):
                  epoch_batch_size: int,
                  split: Literal['val', 'train'],
                  rank: int,
-                 world_size: int):
+                 world_size: int,
+                 shuffle: bool):
         self.B, self.T, self.w_size = batch_size, context_size, world_size
         self.rank = rank
         self.current_position = self.B * self.T * self.rank
         self.iterations = 0
         self.current_shard = 0
+        self.shuffle = shuffle
         self.split = split
         assert epoch_batch_size % (self.B * self.T * self.w_size) == 0, "Cannot divide the processed tokens per epoch into an integer number of gradient accumulation steps."
         self.limit = epoch_batch_size // (self.B * self.T * self.w_size)

@@ -330,14 +330,16 @@ class Trainer:
                                        epoch_batch_size=tokens_per_batch,
                                        split='train',
                                        rank=self.ddp_rank,
-                                       world_size=self.ddp_world_size)
+                                       world_size=self.ddp_world_size,
+                                       shuffle=self.config.shuffle_data)
         if self.config.use_val:
             self.val_loader = dataloader(batch_size=config.batch_size,
                                          context_size=T,
                                          epoch_batch_size=tokens_per_batch,
                                          split='val',
                                          rank=self.ddp_rank,
-                                         world_size=self.ddp_world_size)
+                                         world_size=self.ddp_world_size,
+                                         shuffle=self.config.shuffle_data)
         self.model = model
         self.save_options = SaveOptions(savepath, config, False)
         if os.path.exists(os.path.join(self.save_options.savepath, 'snapshot.pth')) and not self.config.new:
