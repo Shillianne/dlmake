@@ -40,6 +40,7 @@ class Config:
                  validation_rate: Optional[int] = None,
                  benchmark_rate: Optional[int] = None,
                  train_epochs: int = 12000,
+                 shuffle_data: bool = False,
                  new: bool = True,
                  time_precision: Literal['s', 'ms'] = 'ms',
                  val_progress_config: dict[str, bool] = progress_base,
@@ -66,6 +67,7 @@ class Config:
         self.validation_rate = validation_rate
         self.benchmark_rate = benchmark_rate
         self.train_epochs = train_epochs
+        self.shuffle_data = shuffle_data
         self.new = new
         self.time_precision = time_precision
         self.val_progress_config = val_progress_config
@@ -78,10 +80,10 @@ class Config:
         params = ["ctx_size", "vocab_size", "embed_dim", "batch_size", "nhead", "nlayers",
                   "bias", "nlinear", "nlinear_params", "dropout_prob", "max_lr", "min_lr", "optimizer",
                   "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
-                  "benchmark_rate", "train_epochs", "new", "time_precision", "val_progress_config", "train_progress_config"]
+                  "benchmark_rate", "train_epochs", "shuffle_data", "new", "time_precision", "val_progress_config", "train_progress_config"]
         default_types = [int, int, int, int, int, int, bool, nn.Module, list, float, float, float, Optimizer, bool, bool, bool,
-                         bool, int, bool, (None.__class__, int), (None.__class__, int), int, bool, str, dict, dict]
-        defaults = [64, 256, 1, 1, 1, 1, True, nn.ReLU, [], 0.0, 1e-3, 1e-6, AdamW, False, False, True, False, 10, False, None, None, 12000, True, 'ms', progress_base, progress_base]
+                         bool, int, bool, (None.__class__, int), (None.__class__, int), int, bool, bool, str, dict, dict]
+        defaults = [64, 256, 1, 1, 1, 1, True, nn.ReLU, [], 0.0, 1e-3, 1e-6, AdamW, False, False, True, False, 10, False, None, None, 12000, False, True, 'ms', progress_base, progress_base]
         defined = []
         values = {}
         for i, (param, value) in enumerate(config.items()):
