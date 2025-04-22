@@ -217,6 +217,7 @@ class Config:
         for param in set(tuple(params)).difference(set(tuple(defined))):
             if param == "attention_method":
                 values[param] = MultiHeadAttention
-            values[param] = defaults[param]
+            else:
+                values[param] = defaults[param]
 
         return cls(**values)
