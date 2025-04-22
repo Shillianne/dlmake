@@ -14,8 +14,8 @@ class DecoderBlock(nn.Module):
         self.ln2 = nn.LayerNorm(config.embed_dim, bias=config.bias)
         self.mlp = MLP(config=config)
 
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         l = self.ln1(x)
-        x = x + self.attn(l, mask)
+        x = x + self.attn(l, start_pos, mask)
         x = x + self.mlp(self.ln2(x))
         return x

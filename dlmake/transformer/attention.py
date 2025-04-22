@@ -252,11 +252,11 @@ class MultiHeadLatentAttention(Attention):
         q = torch.einsum("bshq,hqc->bshc", q, wkv_b[:, :self.q_head_dim])  # (batch, t, nheads, kv_lora_dim)
         if not self._is_training:
             self.kv_cache[:B, start_pos:end_pos] = kv
-        scores = torch.einsum("bshc,btc->bsht", q, kv if not self._is_training else self.kv_cache[:B, :end_pos]) * (self.q_head_dim ** -0.5)
+        scores = torch.einsum("bshc,btc->bsht", q, kv if self._is_training else self.kv_cache[:B, :end_pos]) * (self.q_head_dim ** -0.5)
         if mask is not None:
-            scores += mask.unsqueeze(1)
+            scores += mask.unsqueeze(-2)
         scores = torch.softmax(scores, dim=-1).type_as(x)
-        x = torch.einsum("bsht,btc->bshc", scores, kv if not self._is_training else self.kv_cache[:B, :end_pos])
+        x = torch.einsum("bsht,btc->bshc", scores, kv if self._is_training else self.kv_cache[:B, :end_pos])
         x = torch.einsum("bshc,hvc->bshv", x, wkv_b[:, -self.v_head_dim:])
         x = self.wo(x.flatten(2))
         return x

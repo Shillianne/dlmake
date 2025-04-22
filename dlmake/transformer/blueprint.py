@@ -34,7 +34,7 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     @abstractmethod
-    def forward(self, start_pos: int = 0, *args) -> torch.Tensor:
+    def forward(self, *args, start_pos: int = 0) -> torch.Tensor:
         pass
     
     def configure_parameters(self, weight_decay: float, lr: float, device: str) -> torch.optim.Optimizer:
@@ -72,14 +72,21 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
         mfu = flops_archived / flops_promised
         return mfu
 
-class TrainingModel(nn.Module):
+class TrainingModel:
     def __init__(self, model: Transformer):
-        super(TrainingModel, self).__init__()
+        self.inner = model
 
-        self.module = model
+    def __call__(self, *args) -> torch.Tensor:
+        return self.forward(*args)
 
     def forward(self, *args) -> torch.Tensor:
-        return self.module(start_pos=0, *args)
+        return self.inner(*args, start_pos=0)
+
+    def eval(self):
+        self.inner.eval()
+
+    def train(self):
+        self.inner.train()
 
 class InferenceModel(nn.Module):
     def __init__(self, model: Transformer):

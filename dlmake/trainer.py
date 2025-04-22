@@ -230,15 +230,15 @@ class SaveOptions:
     def load(self, trainer: "Trainer"):
         snapshot = torch.load(os.path.join(self.savepath, 'snapshot.pth'))
         meta = torch.load(os.path.join(self.savepath, 'metadata.pth'))
-        trainer.model.load_state_dict(snapshot)
-        trainer.model.to(trainer.device)
+        trainer.model.inner.load_state_dict(snapshot)
+        trainer.model.inner.to(trainer.device)
         if trainer.compile:
             trainer.logger("Starting model compilation...")
-            trainer.model.module = cast(Transformer, torch.compile(trainer.model))
+            trainer.model.inner = cast(Transformer, torch.compile(trainer.model.inner))
             trainer.logger("Finished model compilation")
         if trainer.ddp:
-            ddp_holder = DDP(trainer.model.module, device_ids=[trainer.ddp_local_rank])
-            trainer.model.module = cast(Transformer, ddp_holder.module)
+            ddp_holder = DDP(trainer.model.inner, device_ids=[trainer.ddp_local_rank])
+            trainer.model.inner = cast(Transformer, ddp_holder.module)
 
         trainer.step = meta["EPOCHS_RUN"]
         loader_settings: Dict[str, Dict] = meta["LOADER"]
@@ -248,7 +248,7 @@ class SaveOptions:
         trainer.norm_history = meta["N_HISTORY"]
         trainer.val_loss = meta["VAL_LOSS"]
         trainer.val_acc = meta["VAL_ACC"]
-        trainer.optimizer = trainer.model.module.configure_parameters(weight_decay=0.1, lr=6e-4, device=trainer.device)
+        trainer.optimizer = trainer.model.inner.configure_parameters(weight_decay=0.1, lr=6e-4, device=trainer.device)
         trainer.optimizer.load_state_dict(optim_state_dict)
 
         for benchmark in trainer.benchmarks:
@@ -345,15 +345,15 @@ class Trainer:
         if os.path.exists(os.path.join(self.save_options.savepath, 'snapshot.pth')) and not self.config.new:
             self.save_options.load(self)
         else:
-            self.model.module.to(self.device)
+            self.model.inner.to(self.device)
             if self.compile:
                 self.logger("Starting model compilation...")
-                self.model.module = cast(Transformer, torch.compile(self.model.module))
+                self.model.inner = cast(Transformer, torch.compile(self.model.inner))
                 self.logger("Finished model compilation")
             if self.ddp:
-                ddp_holder = DDP(self.model.module, device_ids=[self.ddp_local_rank])
-                self.model.module = cast(Transformer, ddp_holder.module)
-            self.optimizer = self.model.module.configure_parameters(weight_decay=0.1, lr=6e4, device=self.device)
+                ddp_holder = DDP(self.model.inner, device_ids=[self.ddp_local_rank])
+                self.model.inner = cast(Transformer, ddp_holder.module)
+            self.optimizer = self.model.inner.configure_parameters(weight_decay=0.1, lr=6e4, device=self.device)
             self.step = step
         self.loss_fn = nn.CrossEntropyLoss()
         self.accuracy = Accuracy(task='multiclass', num_classes=num_classes)
@@ -406,7 +406,7 @@ class Trainer:
             for i, data in enumerate(self.train_loader):
                 gpu_data = [v.to(self.device) for v in data]
                 if self.ddp:
-                    setattr(self.model.module, "require_backward_grad_sync", (i == self.train_loader.limit - 1))
+                    setattr(self.model.inner, "require_backward_grad_sync", (i == self.train_loader.limit - 1))
                 with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                     y_preds: torch.Tensor = self.model(*gpu_data[:-1])
                     loss: torch.Tensor = self.loss_fn(y_preds.view(-1, y_preds.shape[-1]), gpu_data[-1].view(-1))
@@ -418,7 +418,7 @@ class Trainer:
                 total = i
             if self.ddp:
                 dist.all_reduce(losses, op=dist.ReduceOp.AVG)
-            norm = nn.utils.clip_grad_norm_(self.model.module.parameters(), 1.0)
+            norm = nn.utils.clip_grad_norm_(self.model.inner.parameters(), 1.0)
             lr = self.lr_scheduler(epoch)
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = lr
@@ -427,7 +427,7 @@ class Trainer:
             end = time.time()
             dt = end - start
             tok_per_sec = (self.train_loader.B * self.train_loader.T * self.train_loader.limit * self.ddp_world_size) / dt
-            mfu = self.model.module.estimate_mfu(self.batch_size * self.train_loader.limit, dt)
+            mfu = self.model.inner.estimate_mfu(self.batch_size * self.train_loader.limit, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             acc_time += dt
             seconds = ((self.max_epochs * acc_time) / (epoch + 1)) - acc_time  # expectation - evidence
@@ -441,9 +441,9 @@ class Trainer:
             self.norm_history.append(norm)
             
             if epoch % self.config.checkpoint_rate == 0 and self.master_process:
-                self.save_options.save(self.model.module, self, epoch)
+                self.save_options.save(self.model.inner, self, epoch)
         if self.master_process:
-            self.save_options.save(self.model.module, self, self.max_epochs - 1)
+            self.save_options.save(self.model.inner, self, self.max_epochs - 1)
         if self.ddp:
             destroy_process_group()
 
