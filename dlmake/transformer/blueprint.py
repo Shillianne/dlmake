@@ -34,7 +34,7 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     @abstractmethod
-    def forward(self, *args) -> torch.Tensor:
+    def forward(self, start_pos: int = 0, *args) -> torch.Tensor:
         pass
     
     def configure_parameters(self, weight_decay: float, lr: float, device: str) -> torch.optim.Optimizer:
