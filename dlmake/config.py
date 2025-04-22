@@ -1,5 +1,6 @@
 from typing import Literal, Type, Union, List, Dict, Any, Optional
 from torch.optim import AdamW, Optimizer
+from .transformer.attention import MultiHeadAttention, attention_types
 import torch.nn as nn
 import json
 
@@ -19,15 +20,24 @@ progress_base = {
 class Config:
     def __init__(self,
                  ctx_size: int = 64,
+                 max_ctx_size: int = 256,
                  vocab_size: int = 256,
                  embed_dim: int = 1,
                  batch_size: int = 1,
+                 max_batch_size: int = 2,
                  nhead: int = 1,
                  nlayers: int = 1,
                  bias: bool = True,
+                 norm: Module = nn.LayerNorm,
+                 norm_params: dict[str, Union[int, float]] = {},
                  nlinear: Module = nn.ReLU,
                  nlinear_params: Union[List[Any], Dict[str, Any]] = [],
                  dropout_prob: float = 0.0,
+                 attention_method: type = MultiHeadAttention,
+                 n_kv_groups: Optional[int] = None,
+                 q_head_dim: Optional[int] = None,
+                 kv_lora_dim: Optional[int] = None,
+                 v_head_dim: Optional[int] = None,
                  max_lr: float = 1e-3,
                  min_lr: float = 1e-6,
                  optimizer = AdamW,
@@ -46,15 +56,24 @@ class Config:
                  val_progress_config: dict[str, bool] = progress_base,
                  train_progress_config: dict[str, bool] = progress_base):
         self.ctx_size = ctx_size
+        self.max_ctx_size = max_ctx_size
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.batch_size = batch_size
+        self.max_batch_size = max_batch_size
         self.nhead = nhead
         self.nlayers = nlayers
         self.bias = bias
+        self.norm = norm
+        self.norm_params = norm_params
         self.nlinear = nlinear
         self.nlinear_params = nlinear_params
         self.dropout_prob = dropout_prob
+        self.attention_method = attention_method
+        self.n_kv_groups = n_kv_groups
+        self.q_head_dim = q_head_dim
+        self.kv_lora_dim= kv_lora_dim
+        self.v_head_dim = v_head_dim
         self.max_lr = max_lr
         self.min_lr = min_lr
         self.optimizer = optimizer
@@ -77,13 +96,86 @@ class Config:
     def from_json(cls, filename: str) -> "Config":
         with open(filename, "r") as f:
             config = json.load(f)
-        params = ["ctx_size", "vocab_size", "embed_dim", "batch_size", "nhead", "nlayers",
-                  "bias", "nlinear", "nlinear_params", "dropout_prob", "max_lr", "min_lr", "optimizer",
-                  "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
+        params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "nhead", "nlayers", "bias", "norm",
+                  "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim", "dropout_prob",
+                  "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
                   "benchmark_rate", "train_epochs", "shuffle_data", "new", "time_precision", "val_progress_config", "train_progress_config"]
-        default_types = [int, int, int, int, int, int, bool, nn.Module, list, float, float, float, Optimizer, bool, bool, bool,
-                         bool, int, bool, (None.__class__, int), (None.__class__, int), int, bool, bool, str, dict, dict]
-        defaults = [64, 256, 1, 1, 1, 1, True, nn.ReLU, [], 0.0, 1e-3, 1e-6, AdamW, False, False, True, False, 10, False, None, None, 12000, False, True, 'ms', progress_base, progress_base]
+        default_types = {
+            "ctx_size": int,
+            "max_ctx_size": int,
+            "vocab_size": int,
+            "emebd_dim": int, 
+            "batch_size": int,
+            "max_batch_size": int,
+            "nhead": int,
+            "nlayers": int,
+            "bias": bool,
+            "norm": nn.Module,
+            "norm_params": dict,
+            "nlinear": nn.Module,
+            "nlinear_params": dict,
+            "dropout_prob": float,
+            "attention_method": type,
+            "n_kv_groups": (None.__class__, int),
+            "q_head_dim": (None.__class__, int),
+            "kv_lora_dim": (None.__class__, int),
+            "v_head_dim": (None.__class__, int),
+            "max_lr": float,
+            "min_lr": float,
+            "optimizer": Optimizer,
+            "flash": bool,
+            "doc_aware": bool,
+            "verbose": bool,
+            "compile": bool,
+            "checkpoint_rate": int,
+            "use_val": bool,
+            "validation_rate": (None.__class__, int),
+            "benchmark_rate": (None.__class__, int),
+            "train_epochs": int,
+            "shuffle_data": bool,
+            "new": bool,
+            "time_precision": str,
+            "val_progress_config": dict,
+            "train_progress_config": dict
+        }
+        defaults = {
+            "ctx_size": 64,
+            "max_ctx_size": 256,
+            "vocab_size": 256,
+            "emebd_dim": 1,
+            "batch_size": 1,
+            "max_batch_size": 2,
+            "nhead": 1,
+            "nlayers": 1,
+            "bias": True,
+            "norm": nn.LayerNorm,
+            "norm_params": {},
+            "nlinear": nn.ReLU,
+            "nlinear_params": {},
+            "dropout_prob": 0.0,
+            "attention_method": MultiHeadAttention,
+            "n_kv_groups": None,
+            "q_head_dim": None,
+            "kv_lora_dim": None,
+            "v_head_dim": None,
+            "max_lr": 1e-3,
+            "min_lr": 1e-6,
+            "optimizer": AdamW,
+            "flash": False,
+            "doc_aware": False,
+            "verbose": True,
+            "compile": False,
+            "checkpoint_rate": 10,
+            "use_val": False,
+            "validation_rate": None,
+            "benchmark_rate": None,
+            "train_epochs": 12000,
+            "shuffle_data": False,
+            "new": True,
+            "time_precision": "ms",
+            "val_progress_config": progress_base,
+            "train_progress_config": progress_base
+        }
         defined = []
         values = {}
         for i, (param, value) in enumerate(config.items()):
@@ -100,16 +192,27 @@ class Config:
                 try:
                     exec(f"nn.{value}")
                 except Exception as e:
-                    raise e
+                    try:
+                        exec(f"from base import {value}")
+                    except Exception as e:
+                        raise e
+                    else:
+                        exec(f"values['{param}'] = {value}")
                 else:
                     exec(f"values['{param}'] = nn.{value}")
+            elif param == "attention_method":
+                if value in (names := [att.__name__ for att in attention_types]):
+                    exec(f"from .transformer.attention import {value}")
+                    exec(f"values['{param}'] = {value}")
+                else:
+                    raise TypeError(f"The requested attention method ({value}) is not one of the available types ({names}).")
             else:
                 # print(param, value, params.index(param), defaults[params.index(param)], default_types[params.index(param)])
-                if not issubclass(value.__class__, default_types[params.index(param)]):
-                    raise TypeError(f"The type of argument '{param}' conficts with the expected type ({type(default_types[params.index(param)])}).")
+                if not issubclass(value.__class__, default_types[param]):
+                    raise TypeError(f"The type of argument '{param}' conficts with the expected type ({type(default_types[param])}).")
                 values[param] = value
             defined.append(param)
         for param in set(tuple(params)).difference(set(tuple(defined))):
-            values[param] = defaults[params.index(param)]
+            values[param] = defaults[param]
 
         return cls(**values)

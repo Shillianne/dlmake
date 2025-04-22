@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod, ABCMeta
+from .attention import Attention
 from dlmake import Config
 import torch.nn as nn
 import inspect
@@ -72,3 +73,38 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
         flops_promised = 312e12 # A100 GPU bfloat16 peal flops is 312 TFLOPS
         mfu = flops_archived / flops_promised
         return mfu
+
+class TrainingModel(nn.Module):
+    def __init__(self, model: Transformer):
+        super(TrainingModel, self).__init__()
+
+        self.module = model
+
+    def forward(self, *args) -> torch.Tensor:
+        return self.module(start_pos=0, *args)
+
+class InferenceModel(nn.Module):
+    def __init__(self, model: Transformer):
+        super(InferenceModel, self).__init__()
+
+        self.model = model
+        self.start_pos = 0
+        self.inputs: list[torch.Tensor] = []
+        for layer in self.model.blocks:
+            layer.attn._is_training = False
+            layer.attn.create_kv_cache()
+
+    def forward(self, *args) -> torch.Tensor:
+        x: torch.Tensor = args[0]
+        _, T = x.shape
+        if not self.inputs:
+            for arg in args:
+                self.inputs.append(arg)
+        else:
+            for i, arg in enumerate(args):
+                self.inputs[i] = torch.hstack([self.inputs[i], arg])
+        if T > 1:
+            args = self.inputs
+        out = self.model(start_pos=self.start_pos, *args)
+        self.start_pos += T
+        return out

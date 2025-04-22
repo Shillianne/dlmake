@@ -38,7 +38,8 @@ def document_aware_mask(t: torch.Tensor, eos: int) -> torch.Tensor:
     end_indeces[1][eos_filter] += 1
     seq_ids[end_indeces[0][eos_filter], end_indeces[1][eos_filter]] = 1
     seq_ids = torch.unsqueeze(seq_ids.cumsum(dim=1), 0)
-    return torch.logical_and((seq_ids == seq_ids.T).transpose(0, 1), torch.tril(torch.ones((t.shape[1], t.shape[1]), dtype=t.dtype, device=t.device)))
+    pre_mask = torch.logical_and((seq_ids == seq_ids.permute(2, 1, 0)).transpose(0, 1), torch.tril(torch.ones((t.shape[1], t.shape[1]), dtype=t.dtype, device=t.device)))  # (batch, ctx, ctx)
+    return torch.where(pre_mask == False, float("-inf"), 0)
 
 
 __all__ = ["Logger", "get_most_likely_row"]

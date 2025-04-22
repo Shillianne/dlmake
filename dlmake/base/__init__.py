@@ -21,4 +21,24 @@ class MLP(nn.Module):
         x = self.dropout(x)
         return x
 
-__all__ = ["MLP"]
+class SiLU(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+    
+    def forward(self, x: torch.Tensor):
+        return x * torch.sigmoid(x)
+
+class SwiGLU(nn.Module):
+    def __init__(self, config: Config) -> None:
+        super().__init__()
+        self.fc1 = nn.Linear(in_features=config.embed_dim, out_features=config.embed_dim * 3, bias=False)
+        self.fc2 = nn.Linear(in_features=config.embed_dim, out_features=config.embed_dim * 3, bias=False)
+        self.fc3 = nn.Linear(in_features=config.embed_dim * 3, out_features=config.embed_dim, bias=False)
+
+    def forward(self, x: torch.Tensor):
+        x_fc1 = self.fc1(x)
+        x_fc2 = self.fc2(x)
+        x = torch.nn.functional.silu(x_fc1) * x_fc2
+        return self.fc3(x)
+
+__all__ = ["MLP", "SiLU", "SwiGLU"]
