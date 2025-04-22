@@ -1,6 +1,4 @@
 from abc import ABC, abstractmethod, ABCMeta
-from .attention import Attention
-from dlmake import Config
 import torch.nn as nn
 import inspect
 import torch
@@ -88,6 +86,7 @@ class InferenceModel(nn.Module):
         super(InferenceModel, self).__init__()
 
         self.model = model
+        self.model.eval()
         self.start_pos = 0
         self.inputs: list[torch.Tensor] = []
         for layer in self.model.blocks:

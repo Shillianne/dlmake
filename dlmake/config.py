@@ -1,6 +1,5 @@
 from typing import Literal, Type, Union, List, Dict, Any, Optional
 from torch.optim import AdamW, Optimizer
-from .transformer.attention import MultiHeadAttention, attention_types
 import torch.nn as nn
 import json
 
@@ -33,7 +32,7 @@ class Config:
                  nlinear: Module = nn.ReLU,
                  nlinear_params: Union[List[Any], Dict[str, Any]] = [],
                  dropout_prob: float = 0.0,
-                 attention_method: type = MultiHeadAttention,
+                 attention_method: Optional[type] = None,
                  n_kv_groups: Optional[int] = None,
                  q_head_dim: Optional[int] = None,
                  kv_lora_dim: Optional[int] = None,
@@ -94,6 +93,7 @@ class Config:
 
     @classmethod
     def from_json(cls, filename: str) -> "Config":
+        from .transformer.attention import MultiHeadAttention, attention_types
         with open(filename, "r") as f:
             config = json.load(f)
         params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "nhead", "nlayers", "bias", "norm",
@@ -115,7 +115,7 @@ class Config:
             "nlinear": nn.Module,
             "nlinear_params": dict,
             "dropout_prob": float,
-            "attention_method": type,
+            "attention_method": (None.__class__, type),
             "n_kv_groups": (None.__class__, int),
             "q_head_dim": (None.__class__, int),
             "kv_lora_dim": (None.__class__, int),
@@ -153,7 +153,7 @@ class Config:
             "nlinear": nn.ReLU,
             "nlinear_params": {},
             "dropout_prob": 0.0,
-            "attention_method": MultiHeadAttention,
+            "attention_method": None,
             "n_kv_groups": None,
             "q_head_dim": None,
             "kv_lora_dim": None,
@@ -204,6 +204,8 @@ class Config:
                 if value in (names := [att.__name__ for att in attention_types]):
                     exec(f"from .transformer.attention import {value}")
                     exec(f"values['{param}'] = {value}")
+                elif value is None:
+                    values[param] = MultiHeadAttention
                 else:
                     raise TypeError(f"The requested attention method ({value}) is not one of the available types ({names}).")
             else:
@@ -213,6 +215,8 @@ class Config:
                 values[param] = value
             defined.append(param)
         for param in set(tuple(params)).difference(set(tuple(defined))):
+            if param == "attention_method":
+                values[param] = MultiHeadAttention
             values[param] = defaults[param]
 
         return cls(**values)

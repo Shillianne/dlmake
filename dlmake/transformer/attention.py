@@ -5,39 +5,6 @@ import torch.nn as nn
 from dlmake import Config
 import math
 
-class SharedBuffers:
-    _buffers = {}
-
-    @staticmethod
-    def get_buffers(ctx_size: int, nhead: int, mask: Optional[torch.Tensor] = None, dtype=torch.float32):
-        key = (ctx_size, nhead, dtype)
-
-        if key not in SharedBuffers._buffers:
-            # Create the buffer
-            if mask is None:
-                mask = torch.triu(torch.ones(ctx_size, ctx_size), diagonal=1)
-            SharedBuffers._buffers[key] = mask
-
-        return SharedBuffers._buffers[key]
-
-class KVCache:
-    def __init__(self) -> None:
-        self.k_cache = torch.tensor([])
-        self.v_cache = torch.tensor([])
-
-    def update_cache(self, k: torch.Tensor, v: torch.Tensor):
-        if 0 in self.k_cache.shape:
-            self.k_cache = k
-        else:
-            self.k_cache = torch.cat([self.k_cache, k], dim=2)
-        if 0 in self.v_cache.shape:
-            self.v_cache = v
-        else:
-            self.v_cache = torch.cat([self.v_cache, v], dim=2)
-
-    def get_cache(self):
-        return self.k_cache, self.v_cache
-
 
 class Attention(nn.Module, ABC):
     def __init__(self):

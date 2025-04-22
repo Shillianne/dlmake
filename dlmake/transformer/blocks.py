@@ -8,6 +8,7 @@ from dlmake.base import MLP
 class DecoderBlock(nn.Module):
     def __init__(self, config: Config):
         super(DecoderBlock, self).__init__()
+        assert config.attention_method is not None, "Something must have gone terribly wrong for this error to appear"
         self.ln1 = nn.LayerNorm(config.embed_dim, bias=config.bias)
         self.attn: Attention = config.attention_method(config=config)
         self.ln2 = nn.LayerNorm(config.embed_dim, bias=config.bias)
