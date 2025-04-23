@@ -5,3 +5,4 @@ from .dataloader import BaseDataLoader
 from .transformer import *
 from .utils import *
 from .trainer import Trainer
+from .search import HyperParameterSearch
