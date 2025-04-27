@@ -24,6 +24,7 @@ class Config:
                  embed_dim: int = 1,
                  batch_size: int = 1,
                  max_batch_size: int = 2,
+                 tokens_per_batch: int = 1024,
                  nhead: int = 1,
                  nlayers: int = 1,
                  bias: bool = True,
@@ -49,6 +50,7 @@ class Config:
                  validation_rate: Optional[int] = None,
                  benchmark_rate: Optional[int] = None,
                  train_epochs: int = 12000,
+                 warmup_steps: int = 150,
                  shuffle_data: bool = False,
                  new: bool = True,
                  time_precision: Literal['s', 'ms'] = 'ms',
@@ -60,6 +62,7 @@ class Config:
         self.embed_dim = embed_dim
         self.batch_size = batch_size
         self.max_batch_size = max_batch_size
+        self.tokens_per_batch = tokens_per_batch
         self.nhead = nhead
         self.nlayers = nlayers
         self.bias = bias
@@ -85,6 +88,7 @@ class Config:
         self.validation_rate = validation_rate
         self.benchmark_rate = benchmark_rate
         self.train_epochs = train_epochs
+        self.warmup_steps = warmup_steps
         self.shuffle_data = shuffle_data
         self.new = new
         self.time_precision = time_precision
@@ -96,10 +100,10 @@ class Config:
         from .transformer.attention import MultiHeadAttention, attention_types
         with open(filename, "r") as f:
             config = json.load(f)
-        params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "nhead", "nlayers", "bias", "norm",
-                  "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim", "dropout_prob",
-                  "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
-                  "benchmark_rate", "train_epochs", "shuffle_data", "new", "time_precision", "val_progress_config", "train_progress_config"]
+        params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_batch", "nhead", "nlayers",
+                  "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim",
+                  "dropout_prob", "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
+                  "benchmark_rate", "train_epochs", "warmup_steps", "shuffle_data", "new", "time_precision", "val_progress_config", "train_progress_config"]
         default_types = {
             "ctx_size": int,
             "max_ctx_size": int,
@@ -107,6 +111,7 @@ class Config:
             "embed_dim": int, 
             "batch_size": int,
             "max_batch_size": int,
+            "tokens_per_batch": int,
             "nhead": int,
             "nlayers": int,
             "bias": bool,
@@ -132,6 +137,7 @@ class Config:
             "validation_rate": (None.__class__, int),
             "benchmark_rate": (None.__class__, int),
             "train_epochs": int,
+            "warmup_steps": int,
             "shuffle_data": bool,
             "new": bool,
             "time_precision": str,
@@ -145,6 +151,7 @@ class Config:
             "embed_dim": 1,
             "batch_size": 1,
             "max_batch_size": 2,
+            "tokens_per_batch": 1024,
             "nhead": 1,
             "nlayers": 1,
             "bias": True,
@@ -170,6 +177,7 @@ class Config:
             "validation_rate": None,
             "benchmark_rate": None,
             "train_epochs": 12000,
+            "warmup_steps": 150,
             "shuffle_data": False,
             "new": True,
             "time_precision": "ms",

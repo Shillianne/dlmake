@@ -1,6 +1,12 @@
+from typing import Callable
+from dlmake.config import Config
+from dlmake.trainer import Trainer
+from dlmake.transformer import Transformer
 import os
 import json
 import copy
+
+from dlmake.utils import Logger, cosine_schedule
 
 combs = {
     "config1.json": [
@@ -50,10 +56,16 @@ class HyperParameterSearch:
     def __init__(self,
                  configs: list[str],
                  combinations: dict[str, list[dict[str, int | float | str | bool]]],
+                 model_class: type,
+                 dataloader: type,
                  path: str):
         os.mkdir(os.path.join(path, "search"))
         self.path = os.path.join(path, "search")
         os.mkdir(os.path.join(self.path, "configs"))
+        os.mkdir(os.path.join(self.path, "logs"))
+        os.mkdir(os.path.join(self.path, "models"))
+        self.model_class = model_class
+        self.dataloader: type = dataloader
         count = 0
         for filepath in configs:
             name = os.path.basename(filepath)
@@ -61,6 +73,8 @@ class HyperParameterSearch:
                 raise KeyError(f"File {name} does not have associated combinations nor are there general combinations for this config.")
             with open(filepath, "r") as f:
                 cfg = json.load(f)
+            assert cfg.get("tokens_per_batch", None) is not None, f"The base config ({name}) has to contain a 'tokens_per_batch' field"
+            assert cfg.get("warmup_steps", None) is not None, f"The base config ({name}) has to contain a 'warmup_steps' field"
             init_config = copy.copy(cfg)
             configured_params = []
             if name in combinations.keys():
@@ -84,6 +98,17 @@ class HyperParameterSearch:
                     count += 1
         if count == 0:
             raise KeyError("No base configuration files have been provided, cannot set up a hyper parameter search")
+
+    def search(self):
+        configs = os.listdir(os.path.join(self.path, "configs"))
+        for i, cfg in enumerate(configs):
+            config = Config.from_json(os.path.join(self.path, "configs", cfg))
+            logger = Logger(os.path.join(self.path, "logs", cfg.split('.')[0] + "_log.log"))
+            model: Transformer = self.model_class(config)
+            schedule = lambda epochs: cosine_schedule(epochs, config.max_lr, config.min_lr, config.warmup_steps, int(0.9 * config.train_epochs))
+            trainer = Trainer(model, self.dataloader, config, os.path.join(self.path, "models"), schedule, [],
+                              tokens_per_batch=config.tokens_per_batch, logger=logger, model_index=i + 1, max_models=len(configs))
+            trainer.train()
     
     @staticmethod
     def __give_general_combinations(combs: dict, configured: list, init_config: dict):

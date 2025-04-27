@@ -1,5 +1,6 @@
 import torch
 from torch.nn import functional as F
+import math
 
 class Logger:
     def __init__(self, filename: str, new: bool = True):
@@ -40,6 +41,16 @@ def document_aware_mask(t: torch.Tensor, eos: int) -> torch.Tensor:
     seq_ids = torch.unsqueeze(seq_ids.cumsum(dim=1), 0)
     pre_mask = torch.logical_and((seq_ids == seq_ids.permute(2, 1, 0)).transpose(0, 1), torch.tril(torch.ones((t.shape[1], t.shape[1]), dtype=t.dtype, device=t.device)))  # (batch, ctx, ctx)
     return torch.where(pre_mask == False, float("-inf"), 0)
+
+def cosine_schedule(iteration: int, max_lr: float, min_lr: float, warmup_steps: int, max_steps: int):
+    if iteration < warmup_steps:
+        return max_lr * (iteration + 1) / warmup_steps
+    if iteration > max_steps:
+        return min_lr
+    decay_ratio = (iteration - warmup_steps) / (max_steps - warmup_steps)
+    assert 0 <= decay_ratio <= 1
+    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
+    return min_lr + coeff * (max_lr - min_lr)
 
 
 __all__ = ["Logger", "get_most_likely_row"]
