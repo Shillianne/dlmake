@@ -2,12 +2,12 @@ from setuptools import setup, find_packages
 
 setup(
     name="dlmake",
-    version="0.1.0",
+    version="0.1.1",
     author="Shillianne",
     description="A package that groups all necesities for training and evaluating Neural Networks",
     packages=find_packages(),
     install_requires=[
-        "matplotlib==3.10.1", "tiktoken==0.8.0", "torchaudio==2.5.1", "torchmetrics==1.6.1", "torchvision==0.20.1"
+        "matplotlib>=3.10.8", "tiktoken>=0.12.0", "torchmetrics==1.8.2", "torchvision==0.25.0"
     ],
     python_requires=">=3.11.0",
     keywords=["Python", "Machine Learning"],
