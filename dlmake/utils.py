@@ -33,6 +33,21 @@ def get_most_likely_row(tokens: torch.Tensor, mask: torch.Tensor, logits: torch.
     return pred_norm
 
 def document_aware_mask(t: torch.Tensor, eos: int) -> torch.Tensor:
+    """
+    Creates a mask that allows attention to only be performed between tokens belonging
+    to the same document. This is made with the intention of stopping the model from
+    learning relationships between tokens during training that don't belong to the same
+    document.
+
+    Arguments:
+        - t (torch.Tensor): Tensor of tokens.
+        - eos (int): The End-Of-Sentence token of the particular tokenizer used.
+
+    Returns:
+        - mask (torch.Tensor): A mask where attention can only be performed between same
+          documents.
+    """
+
     end_indeces = (t == eos).nonzero(as_tuple=True)
     seq_ids = torch.zeros_like(t, dtype=torch.long)
     eos_filter = torch.where(end_indeces[1] != t.shape[1] - 1)[0]

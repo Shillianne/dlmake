@@ -37,10 +37,22 @@ class MultiHeadAttention(Attention):
         self.attn_dropout = nn.Dropout(config.dropout_prob)
         self.proj_dropout = nn.Dropout(config.dropout_prob)
         if not self._is_training:
+            self.kv_cache: torch.Tensor
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, config.nhead, config.max_ctx_size, config.embed_dim // config.nhead),
                                  persistent=False)
 
     def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Forward method of the MultiHeadAttention class.
+
+        Arguments:
+            - x (torch.Tensor): Tensor of embeddings for the class to perform attention on.
+            - start_pos (int): During training, this value is 0. During inference, it's set to the number of tokens processed,
+              so that the input in this mode can be just the last token generated.
+            - mask (Optional[torch.Tensor]): An optional mask to be applied to the attention mechanism. If not passed, it uses
+              the standard no-lookahead mask.
+        """
+
         B, T, E = x.shape
         end_pos = start_pos + T
         q, k, v = self.attn(x).split(self.embed_dim, dim=2)

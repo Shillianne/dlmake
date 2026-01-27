@@ -35,6 +35,14 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
 
     @abstractmethod
     def forward(self, *args, start_pos: int = 0) -> torch.Tensor:
+        """
+        Forward method of the base transformer.
+        Arguments:
+            - args (tuple[torch.Tensor]): A tuple of input tensors to pass to the transformer.
+            - start_pos (int): During training, this parameter is not used and is always 0. During inference,
+              this parameter takes the value of the number of tokens processed so far. This is so that in this mode
+              the model only takes a single token as input on each generation iteration, reducing memory overhead.
+        """
         pass
     
     def configure_parameters(self, weight_decay: float, lr: float, device: str) -> torch.optim.Optimizer:
