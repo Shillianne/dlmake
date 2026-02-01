@@ -1,6 +1,5 @@
 from abc import abstractmethod, ABC
 from typing import Literal, Tuple
-import numpy as np
 import torch
 import os
 
@@ -9,15 +8,12 @@ class BaseDataLoader(ABC):
         self,
         batch_size: int,
         context_size: int,
-        max_gb_loaded: int,
         tokens_per_epoch: int,
         split: Literal["train", "test", "val"],
         min_idx: int,
         max_idx: int,
         rank: int,
         world_size: int,
-        shuffle: bool,
-        token_size: int = 16,
     ):
         """
         Base class for any dataloader.
@@ -36,24 +32,13 @@ class BaseDataLoader(ABC):
         """
         self.B, self.T, self.w_size = batch_size, context_size, world_size
         self.rank = rank
-        self.current_position = self.B * self.T * self.rank
-        self.iterations = 0
-        self.current_shard = 0
-        self.shuffle = shuffle
         self.split = split
         self.min_idx = min_idx
         self.max_idx = max_idx
-        self.num_tokens = int((max_gb_loaded * (8 * (1024 ** 3))) / token_size)
-        self.min_loaded_idx = 0
-        self.max_loaded_idx = self.num_tokens
         assert tokens_per_epoch % (self.B * self.T * self.w_size) == 0, "Cannot divide the processed tokens per epoch into an integer number of gradient accumulation steps."
-        self.limit = tokens_per_epoch // (self.B * self.T * self.w_size)
 
-    def load_tokens(self, filename: str, path: str = ""):
-        npt: np.ndarray = np.load(path + filename, mmap_mode="r")
-        ptt = torch.tensor(npt[self.min_loaded_idx:self.max_loaded_idx])
-        return ptt
-
+    def load_tokens(self, min: int, max: int) -> torch.Tensor:
+        raise NotImplementedError("Child classes of BaseDataLoader have to implement this method")
 
     def __iter__(self):
         return self
@@ -123,14 +108,63 @@ class SplitGenerator:
             min_val_idx = max_test_idx
             max_val_idx = self.total_tokens
             
-            return (dataloader(batch_size, context_size, tokens_per_epoch, split="train", min_idx=min_train_idx, max_idx=max_train_idx, rank=rank, world_size=world_size, shuffle=True),
-                    dataloader(batch_size, context_size, tokens_per_epoch, split="test", min_idx=min_test_idx, max_idx=max_test_idx, rank=rank, world_size=world_size, shuffle=True),
-                    dataloader(batch_size, context_size, tokens_per_epoch, split="val", min_idx=min_val_idx, max_idx=max_val_idx, rank=rank, world_size=world_size, shuffle=True))
+            return (
+                dataloader(
+                    batch_size=batch_size,
+                    context_size=context_size,
+                    tokens_per_epoch=tokens_per_epoch,
+                    split="train",
+                    min_idx=min_train_idx,
+                    max_idx=max_train_idx,
+                    rank=rank,
+                    world_size=world_size,
+                ),
+                dataloader(
+                    batch_size=batch_size,
+                    context_size=context_size,
+                    tokens_per_epoch=tokens_per_epoch,
+                    split="test",
+                    min_idx=min_test_idx,
+                    max_idx=max_test_idx,
+                    rank=rank,
+                    world_size=world_size,
+                ),
+                dataloader(
+                    batch_size=batch_size,
+                    context_size=context_size,
+                    tokens_per_epoch=tokens_per_epoch,
+                    split="val",
+                    min_idx=min_val_idx,
+                    max_idx=max_val_idx,
+                    rank=rank,
+                    world_size=world_size,
+                ),
+            )
         else:
             min_train_idx = 0
             max_train_idx = int(self.total_tokens * self.train_size)
             min_test_idx = max_train_idx
             max_test_idx = self.total_tokens
-            return (dataloader(batch_size, context_size, tokens_per_epoch, split="train", min_idx=min_train_idx, max_idx=max_train_idx, rank=rank, world_size=world_size, shuffle=True),
-                    dataloader(batch_size, context_size, tokens_per_epoch, split="test", min_idx=min_test_idx, max_idx=max_test_idx, rank=rank, world_size=world_size, shuffle=True))
+            return (
+                dataloader(
+                    batch_size=batch_size,
+                    context_size=context_size,
+                    tokens_per_epoch=tokens_per_epoch,
+                    split="train",
+                    min_idx=min_train_idx,
+                    max_idx=max_train_idx,
+                    rank=rank,
+                    world_size=world_size,
+                ),
+                dataloader(
+                    batch_size=batch_size,
+                    context_size=context_size,
+                    tokens_per_epoch=tokens_per_epoch,
+                    split="test",
+                    min_idx=min_test_idx,
+                    max_idx=max_test_idx,
+                    rank=rank,
+                    world_size=world_size,
+                ),
+            )
 
