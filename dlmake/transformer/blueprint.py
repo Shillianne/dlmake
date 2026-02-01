@@ -82,7 +82,7 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
 
 class TrainingModel:
     def __init__(self, model: Transformer):
-        self.inner = model
+        self.inner: Transformer = model
 
     def __call__(self, *args) -> torch.Tensor:
         return self.forward(*args)

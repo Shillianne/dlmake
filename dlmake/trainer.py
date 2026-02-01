@@ -3,7 +3,7 @@ from typing import Callable, List, Optional, Type, Dict, cast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from dlmake.transformer import Transformer, TrainingModel
 from .utils import get_most_likely_row, Logger
-from dlmake import Config, BaseDataLoader
+from dlmake import Config, BaseDataLoader, SplitGenerator
 from torchmetrics import Accuracy
 from .benchmark import Benchmark
 import torch.distributed as dist
@@ -162,32 +162,24 @@ class SaveOptions:
         meta['EPOCHS_RUN'] = epoch + 1
         if trainer.config.use_val:
             meta["LOADER"] = {
-                "train": {
-                    "iterations": trainer.train_loader.iterations,
-                    "current_position": trainer.train_loader.current_position,
-                    "current_shard": trainer.train_loader.current_shard
-                },
-                "valid": {
-                    "iterations": trainer.val_loader.iterations,
-                    "current_position": trainer.val_loader.current_position,
-                    "current_shard": trainer.val_loader.current_shard
-                }
+                "train": trainer.train_dataloader.__dict__,
+                "test": trainer.test_dataloader.__dict__,
+                "val": trainer.val_dataloader.__dict__,
             }
+            meta["VAL_LOSS"] = trainer.val_loss
+            meta["VAL_ACC"] = trainer.val_acc
         else:
             meta["LOADER"] = {
-                "train": {
-                    "iterations": trainer.train_loader.iterations,
-                    "current_position": trainer.train_loader.current_position,
-                    "current_shard": trainer.train_loader.current_shard
-                }
+                "train": trainer.train_dataloader.__dict__,
+                "test": trainer.test_dataloader.__dict__,
             }
         meta["OPTIM"] = trainer.optimizer.state_dict()
         meta["CONFIG"] = {k: v for k, v in trainer.config.__dict__.items() if not k.startswith('_')}
         meta["L_HISTORY"] = trainer.loss_history
         meta["A_HISTORY"] = trainer.acc_history
         meta["N_HISTORY"] = trainer.norm_history
-        meta["VAL_LOSS"] = trainer.val_loss
-        meta["VAL_ACC"] = trainer.val_acc
+        meta["TEST_LOSS"] = trainer.test_loss
+        meta["TEST_ACC"] = trainer.test_acc
         for benchmark in trainer.benchmarks:
             meta[f"{benchmark}_ACC".upper()] = getattr(self, f'{benchmark}_acc')
         if self.onnx:
@@ -246,17 +238,20 @@ class SaveOptions:
         trainer.loss_history = meta["L_HISTORY"]
         trainer.acc_history = meta["A_HISTORY"]
         trainer.norm_history = meta["N_HISTORY"]
-        trainer.val_loss = meta["VAL_LOSS"]
-        trainer.val_acc = meta["VAL_ACC"]
+        trainer.test_loss = meta["TEST_LOSS"]
+        trainer.test_acc = meta["TEST_ACC"]
         trainer.optimizer = trainer.model.inner.configure_parameters(weight_decay=0.1, lr=6e-4, device=trainer.device)
         trainer.optimizer.load_state_dict(optim_state_dict)
 
         for benchmark in trainer.benchmarks:
             setattr(trainer, f'{benchmark}_acc', meta[f'{benchmark}_ACC'.upper()])
 
-        trainer.train_loader.resume(*list(loader_settings['train'].values()))
+        trainer.train_dataloader.resume(**loader_settings['train'])
+        trainer.test_dataloader.resume(**loader_settings["test"])
         if trainer.config.use_val:
-            trainer.val_loader.resume(*list(loader_settings['valid'].values()))
+            trainer.val_dataloader.resume(**loader_settings['val'])
+            trainer.val_loss = meta["VAL_LOSS"]
+            trainer.val_acc = meta["VAL_ACC"]
         trainer.logger("Loaded snapshot of the model.")
 
 class Trainer:
@@ -264,11 +259,13 @@ class Trainer:
                  model: Transformer,
                  dataloader: Type[BaseDataLoader],
                  config: Config,
+                 data_path: str,
                  savepath: str,
                  lr_schedule: Callable,
                  benchmarks: List[Benchmark],
                  step: int = 0,
-                 tokens_per_batch: int = 0,
+                 loaded_tokens: int = 0,
+                 tokens_per_epoch: int = 0,
                  logger: Optional[Logger] = None,
                  model_index: int = 1,
                  max_models: int = 1)-> None:
@@ -282,17 +279,19 @@ class Trainer:
         self.lr_scheduler: Callable = lr_schedule
         self.verbose = config.verbose
         self.batch_size = config.batch_size
+        self.test_rate = self.config.test_rate if self.config.test_rate is not None else 100
         self.validation_rate = self.config.validation_rate if self.config.validation_rate is not None else 100
         self.benchmark_rate = (self.config.benchmark_rate if self.config.benchmark_rate is not None else 100) if self.benchmarks else 0
         self.logger = logger.log if logger is not None else (lambda x: print(x))
         self.loss_history: list[torch.Tensor] = []
         self.acc_history: list[torch.Tensor] = []
         self.norm_history: list[torch.Tensor] = []
-        self.val_loss: list[torch.Tensor] = []
-        self.val_acc: list[torch.Tensor] = []
+        self.test_loss: list[torch.Tensor] = []
+        self.test_acc: list[torch.Tensor] = []
         self.m_index = model_index
         self.models = max_models
         self.val_print_f = progress_factory(**self.config.val_progress_config)
+        self.test_print_f = progress_factory(**self.config.test_progress_config)
         self.train_print_f = progress_factory(**self.config.train_progress_config)
         self.max_epochs = self.config.train_epochs
         for benchmark in self.benchmarks:
@@ -325,22 +324,42 @@ class Trainer:
                 self.device = 'mps'
             self.logger(f"Using device: {self.device}")
 
-        self.train_loader = dataloader(batch_size=config.batch_size,
-                                       context_size=T,
-                                       epoch_batch_size=tokens_per_batch,
-                                       split='train',
-                                       rank=self.ddp_rank,
-                                       world_size=self.ddp_world_size,
-                                       shuffle=self.config.shuffle_data)
         if self.config.use_val:
-            self.val_loader = dataloader(batch_size=config.batch_size,
-                                         context_size=T,
-                                         epoch_batch_size=tokens_per_batch,
-                                         split='val',
-                                         rank=self.ddp_rank,
-                                         world_size=self.ddp_world_size,
-                                         shuffle=self.config.shuffle_data)
+            self.train_dataloader, self.test_dataloader, self.val_dataloader = SplitGenerator(
+                data_path=data_path,
+                use_val=self.config.use_val,
+                train_size=self.config.train_size,
+                test_size=self.config.test_size,
+                val_size=self.config.val_size,
+            ).generate_splits(
+                dataloader,
+                batch_size=self.config.batch_size,
+                context_size=self.config.ctx_size,
+                loaded_tokens=loaded_tokens,
+                tokens_per_epoch=tokens_per_epoch,
+                rank=self.ddp_rank,
+                world_size=self.ddp_world_size,
+            )
+            self.val_loss: list[torch.Tensor] = []
+            self.val_acc: list[torch.Tensor] = []
+        else:
+            self.train_dataloader, self.test_dataloader = SplitGenerator(
+                data_path=data_path,
+                use_val=self.config.use_val,
+                train_size=self.config.train_size,
+                test_size=self.config.test_size,
+                val_size=self.config.val_size,
+            ).generate_splits(
+                dataloader,
+                batch_size=self.config.batch_size,
+                context_size=self.config.ctx_size,
+                loaded_tokens=loaded_tokens,
+                tokens_per_epoch=tokens_per_epoch,
+                rank=self.ddp_rank,
+                world_size=self.ddp_world_size,
+            )
         self.model = TrainingModel(model)
+        self.limit = tokens_per_epoch // (config.batch_size * config.ctx_size * self.ddp_world_size)
         self.save_options = SaveOptions(savepath, config, False)
         if os.path.exists(os.path.join(self.save_options.savepath, 'snapshot.pth')) and not self.config.new:
             self.save_options.load(self)
@@ -355,7 +374,8 @@ class Trainer:
                 self.model.inner = cast(Transformer, ddp_holder.module)
             self.optimizer = self.model.inner.configure_parameters(weight_decay=0.1, lr=6e-4, device=self.device)
             self.step = step
-        self.logger(f"Using Attention method: {self.model.inner.blocks[0].attn.__class__.__name__}")
+        assert isinstance(self.model.inner.blocks, nn.ModuleList), "Selected model must have a blocks segment"
+        self.logger(f"Using Attention method: {self.model.inner.blocks[0]}")
         self.loss_fn = nn.CrossEntropyLoss()
         self.accuracy = Accuracy(task='multiclass', num_classes=num_classes)
         self.accuracy.to(self.device)
@@ -370,20 +390,41 @@ class Trainer:
             start = time.time()
             last_epoch = (epoch == self.max_epochs - 1)
 
-            if (epoch % self.validation_rate == 0 or last_epoch) and self.config.use_val:
+            if (epoch % self.test_rate == 0 or last_epoch):
                 self.model.eval()
-                self.val_loader.reset()
                 with torch.inference_mode():
-                    val_loss = torch.tensor(0., device=self.device)
-                    val_acc = torch.tensor(0., device=self.device)
+                    test_loss = torch.tensor(0., device=self.device)
+                    test_acc = torch.tensor(0., device=self.device)
                     i = 0
-                    for i, data in enumerate(self.val_loader):
+                    for i, data in enumerate(self.test_dataloader):
                         gpu_data = [v.to(self.device) for v in data]
                         with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                             logits: torch.Tensor = self.model(*gpu_data[:-1])
                             loss: torch.Tensor = self.loss_fn(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
-                            # self.logger(f"{logits}")
-                        loss = loss / self.val_loader.limit
+                        loss = loss / self.limit
+                        acc: torch.Tensor = self.accuracy(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
+                        test_loss += loss.detach()
+                        test_acc += acc.detach()
+                    test_acc /= (i + 1)
+                    self.test_loss.append(test_loss)
+                    self.test_acc.append(test_acc)
+                    if self.ddp:
+                        dist.all_reduce(test_loss, op=dist.ReduceOp.AVG)
+                    if self.master_process:
+                        self.logger(self.test_print_f(loss=test_loss.item(), acc=test_loss.item()))
+
+            if (epoch % self.validation_rate == 0 or last_epoch) and self.config.use_val:
+                self.model.eval()
+                with torch.inference_mode():
+                    val_loss = torch.tensor(0., device=self.device)
+                    val_acc = torch.tensor(0., device=self.device)
+                    i = 0
+                    for i, data in enumerate(self.val_dataloader):
+                        gpu_data = [v.to(self.device) for v in data]
+                        with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
+                            logits: torch.Tensor = self.model(*gpu_data[:-1])
+                            loss: torch.Tensor = self.loss_fn(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
+                        loss = loss / self.limit
                         acc: torch.Tensor = self.accuracy(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
                         val_loss += loss.detach()
                         val_acc += acc.detach()
@@ -395,8 +436,8 @@ class Trainer:
                     if self.master_process:
                         self.logger(self.val_print_f(loss=val_loss.item(), acc=val_acc.item()))
 
-            # if self.benchmarks and (epoch % self.benchmark_rate == 0 or last_epoch):
-            #     self._validate_benchmarks()
+            if self.benchmarks and (epoch % self.benchmark_rate == 0 or last_epoch):
+                self._validate_benchmarks()
 
             losses = torch.tensor(0., device=self.device)
             accs = torch.tensor(0., device=self.device)
@@ -404,14 +445,14 @@ class Trainer:
             self.model.train()
             self.optimizer.zero_grad()
 
-            for i, data in enumerate(self.train_loader):
+            for i, data in enumerate(self.train_dataloader):
                 gpu_data = [v.to(self.device) for v in data]
                 if self.ddp:
-                    setattr(self.model.inner, "require_backward_grad_sync", (i == self.train_loader.limit - 1))
+                    setattr(self.model.inner, "require_backward_grad_sync", (i == self.limit - 1))
                 with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                     y_preds: torch.Tensor = self.model(*gpu_data[:-1])
                     loss: torch.Tensor = self.loss_fn(y_preds.view(-1, y_preds.shape[-1]), gpu_data[-1].view(-1))
-                loss = loss / self.train_loader.limit
+                loss = loss / self.limit
                 losses += loss.detach()
                 acc: torch.Tensor = self.accuracy(y_preds.view(-1, y_preds.shape[-1]), gpu_data[-1].view(-1))
                 accs += acc.detach()
@@ -427,8 +468,8 @@ class Trainer:
             torch.cuda.synchronize()
             end = time.time()
             dt = end - start
-            tok_per_sec = (self.train_loader.B * self.train_loader.T * self.train_loader.limit * self.ddp_world_size) / dt
-            mfu = self.model.inner.estimate_mfu(self.batch_size * self.train_loader.limit, dt)
+            tok_per_sec = (self.train_dataloader.B * self.train_dataloader.T * self.limit * self.ddp_world_size) / dt
+            mfu = self.model.inner.estimate_mfu(self.batch_size * self.limit, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
             acc_time += dt
             seconds = ((self.max_epochs * acc_time) / (epoch + 1)) - acc_time  # expectation - evidence
@@ -443,6 +484,7 @@ class Trainer:
             
             if epoch % self.config.checkpoint_rate == 0 and self.master_process:
                 self.save_options.save(self.model.inner, self, epoch)
+
         if self.master_process:
             self.save_options.save(self.model.inner, self, self.max_epochs - 1)
         if self.ddp:

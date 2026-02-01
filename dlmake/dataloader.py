@@ -1,13 +1,17 @@
+from typing import Literal, Tuple, TypeVar, Generic, overload
 from abc import abstractmethod, ABC
-from typing import Literal, Tuple
+import pickle
 import torch
 import os
+
+Val = TypeVar("Val", Literal[True], Literal[False])
 
 class BaseDataLoader(ABC):
     def __init__(
         self,
         batch_size: int,
         context_size: int,
+        loaded_tokens: int,
         tokens_per_epoch: int,
         split: Literal["train", "test", "val"],
         min_idx: int,
@@ -57,17 +61,16 @@ class BaseDataLoader(ABC):
         pass
 
     @abstractmethod
-    def resume(self, state: list) -> None:
+    def resume(self, **state) -> None:
         """Sets the dataloader to the state of a previous run"""
         pass
 
 
-class SplitGenerator:
+class SplitGenerator(Generic[Val]):
     def __init__(
         self,
         data_path: str,
-        shard_size: int,
-        use_val: bool,
+        use_val: Val,
         train_size: float = 0.8,
         test_size: float = 0.2,
         val_size: float = 0.0
@@ -77,10 +80,14 @@ class SplitGenerator:
 
         Arguments:
             - data_path (str): Path to the directory containing the numpy files of the dataset.
-            - shard_size (int): Size of each data shard in tokens.
+            - use_val (bool): Whether to use a validation partition.
+            - train_size (float): Percentage of the dataset to use for training.
+            - test_size (float): Percentage of the dataset to use for testing.
+            - val_size (float): Percentage of the dataset to use for validation (ignored if use_val is False).
         """
-        shards = len(os.listdir(data_path))
-        self.total_tokens = shards * shard_size
+        with open(os.path.join(data_path, "metadata.pkl"), "rb") as pf:
+            metadata = pickle.load(pf)
+        self.total_tokens = metadata["total_tokens"]
         self.data_path = data_path
         self.use_val = use_val
         if use_val:
@@ -94,12 +101,21 @@ class SplitGenerator:
             self.test_size = test_size
             self.val_size = 0.0
 
+    @overload
+    def generate_splits(self: "SplitGenerator[Literal[True]]", dataloader: type[BaseDataLoader], **kwargs) -> tuple[BaseDataLoader, BaseDataLoader, BaseDataLoader]:
+        ...
+
+    @overload
+    def generate_splits(self: "SplitGenerator[Literal[False]]", dataloader: type[BaseDataLoader], **kwargs) -> tuple[BaseDataLoader, BaseDataLoader]:
+        ...
+
     def generate_splits(self, dataloader: type[BaseDataLoader], **kwargs):
-        batch_size = kwargs["batch_size"]
-        context_size = kwargs["context_size"]
-        tokens_per_epoch = kwargs["tokens_per_epoch"]
-        rank = kwargs["rank"]
-        world_size = kwargs["world_size"]
+        batch_size: int = kwargs["batch_size"]
+        context_size: int = kwargs["context_size"]
+        loaded_tokens: int = kwargs["loaded_tokens"]
+        tokens_per_epoch: int = kwargs["tokens_per_epoch"]
+        rank: int = kwargs["rank"]
+        world_size: int = kwargs["world_size"]
         if self.use_val:
             min_train_idx = 0
             max_train_idx = int(self.total_tokens * self.train_size)
@@ -112,6 +128,7 @@ class SplitGenerator:
                 dataloader(
                     batch_size=batch_size,
                     context_size=context_size,
+                    loaded_tokens=loaded_tokens,
                     tokens_per_epoch=tokens_per_epoch,
                     split="train",
                     min_idx=min_train_idx,
@@ -122,6 +139,7 @@ class SplitGenerator:
                 dataloader(
                     batch_size=batch_size,
                     context_size=context_size,
+                    loaded_tokens=loaded_tokens,
                     tokens_per_epoch=tokens_per_epoch,
                     split="test",
                     min_idx=min_test_idx,
@@ -132,6 +150,7 @@ class SplitGenerator:
                 dataloader(
                     batch_size=batch_size,
                     context_size=context_size,
+                    loaded_tokens=loaded_tokens,
                     tokens_per_epoch=tokens_per_epoch,
                     split="val",
                     min_idx=min_val_idx,
@@ -149,6 +168,7 @@ class SplitGenerator:
                 dataloader(
                     batch_size=batch_size,
                     context_size=context_size,
+                    loaded_tokens=loaded_tokens,
                     tokens_per_epoch=tokens_per_epoch,
                     split="train",
                     min_idx=min_train_idx,
@@ -159,6 +179,7 @@ class SplitGenerator:
                 dataloader(
                     batch_size=batch_size,
                     context_size=context_size,
+                    loaded_tokens=loaded_tokens,
                     tokens_per_epoch=tokens_per_epoch,
                     split="test",
                     min_idx=min_test_idx,

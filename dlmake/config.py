@@ -47,6 +47,10 @@ class Config:
                  compile: bool = False,
                  checkpoint_rate: int = 10,
                  use_val: bool = False,
+                 train_size: float = 0.8,
+                 test_size: float = 0.2,
+                 val_size: float = 0.0,
+                 test_rate: Optional[int] = None,
                  validation_rate: Optional[int] = None,
                  benchmark_rate: Optional[int] = None,
                  train_epochs: int = 12000,
@@ -55,6 +59,7 @@ class Config:
                  new: bool = True,
                  time_precision: Literal['s', 'ms'] = 'ms',
                  val_progress_config: dict[str, bool] = progress_base,
+                 test_progress_config: dict[str, bool] = progress_base,
                  train_progress_config: dict[str, bool] = progress_base):
         self.ctx_size = ctx_size
         self.max_ctx_size = max_ctx_size
@@ -85,6 +90,10 @@ class Config:
         self.compile = compile
         self.checkpoint_rate = checkpoint_rate
         self.use_val = use_val
+        self.train_size = train_size
+        self.test_size = test_size
+        self.val_size = val_size
+        self.test_rate = test_rate
         self.validation_rate = validation_rate
         self.benchmark_rate = benchmark_rate
         self.train_epochs = train_epochs
@@ -93,6 +102,7 @@ class Config:
         self.new = new
         self.time_precision = time_precision
         self.val_progress_config = val_progress_config
+        self.test_progress_config = test_progress_config
         self.train_progress_config = train_progress_config
 
     @classmethod
@@ -102,8 +112,9 @@ class Config:
             config = json.load(f)
         params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_batch", "nhead", "nlayers",
                   "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim",
-                  "dropout_prob", "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "validation_rate",
-                  "benchmark_rate", "train_epochs", "warmup_steps", "shuffle_data", "new", "time_precision", "val_progress_config", "train_progress_config"]
+                  "dropout_prob", "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "train_size", 
+                  "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs", "warmup_steps", "shuffle_data", "new",
+                  "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
         default_types = {
             "ctx_size": int,
             "max_ctx_size": int,
@@ -134,6 +145,10 @@ class Config:
             "compile": bool,
             "checkpoint_rate": int,
             "use_val": bool,
+            "train_size": float,
+            "test_size": float,
+            "val_size": float,
+            "test_rate": (None.__class__, int),
             "validation_rate": (None.__class__, int),
             "benchmark_rate": (None.__class__, int),
             "train_epochs": int,
@@ -142,6 +157,7 @@ class Config:
             "new": bool,
             "time_precision": str,
             "val_progress_config": dict,
+            "test_progress_config": dict,
             "train_progress_config": dict
         }
         defaults = {
@@ -174,6 +190,10 @@ class Config:
             "compile": False,
             "checkpoint_rate": 10,
             "use_val": False,
+            "train_size": 0.8,
+            "test_size": 0.2,
+            "val_size": 0.0,
+            "test_rate": None,
             "validation_rate": None,
             "benchmark_rate": None,
             "train_epochs": 12000,
@@ -182,6 +202,7 @@ class Config:
             "new": True,
             "time_precision": "ms",
             "val_progress_config": progress_base,
+            "test_progress_config": progress_base,
             "train_progress_config": progress_base
         }
         defined = []
