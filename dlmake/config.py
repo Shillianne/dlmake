@@ -24,7 +24,7 @@ class Config:
                  embed_dim: int = 1,
                  batch_size: int = 1,
                  max_batch_size: int = 2,
-                 tokens_per_batch: int = 1024,
+                 tokens_per_epoch: int = 1024,
                  nhead: int = 1,
                  nlayers: int = 1,
                  bias: bool = True,
@@ -67,7 +67,7 @@ class Config:
         self.embed_dim = embed_dim
         self.batch_size = batch_size
         self.max_batch_size = max_batch_size
-        self.tokens_per_batch = tokens_per_batch
+        self.tokens_per_epoch = tokens_per_epoch
         self.nhead = nhead
         self.nlayers = nlayers
         self.bias = bias
@@ -110,7 +110,7 @@ class Config:
         from .transformer.attention import MultiHeadAttention, attention_types
         with open(filename, "r") as f:
             config = json.load(f)
-        params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_batch", "nhead", "nlayers",
+        params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_epoch", "nhead", "nlayers",
                   "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim",
                   "dropout_prob", "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "train_size", 
                   "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs", "warmup_steps", "shuffle_data", "new",
@@ -122,7 +122,7 @@ class Config:
             "embed_dim": int, 
             "batch_size": int,
             "max_batch_size": int,
-            "tokens_per_batch": int,
+            "tokens_per_epoch": int,
             "nhead": int,
             "nlayers": int,
             "bias": bool,
@@ -167,7 +167,7 @@ class Config:
             "embed_dim": 1,
             "batch_size": 1,
             "max_batch_size": 2,
-            "tokens_per_batch": 1024,
+            "tokens_per_epoch": 1024,
             "nhead": 1,
             "nlayers": 1,
             "bias": True,

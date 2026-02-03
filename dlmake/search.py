@@ -73,7 +73,7 @@ class HyperParameterSearch:
                 raise KeyError(f"File {name} does not have associated combinations nor are there general combinations for this config.")
             with open(filepath, "r") as f:
                 cfg = json.load(f)
-            assert cfg.get("tokens_per_batch", None) is not None, f"The base config ({name}) has to contain a 'tokens_per_batch' field"
+            assert cfg.get("tokens_per_epoch", None) is not None, f"The base config ({name}) has to contain a 'tokens_per_epoch' field"
             assert cfg.get("warmup_steps", None) is not None, f"The base config ({name}) has to contain a 'warmup_steps' field"
             init_config = copy.copy(cfg)
             configured_params = []
@@ -107,7 +107,7 @@ class HyperParameterSearch:
             model: Transformer = self.model_class(config)
             schedule = lambda epochs: cosine_schedule(epochs, config.max_lr, config.min_lr, config.warmup_steps, int(0.9 * config.train_epochs))
             trainer = Trainer(model, self.dataloader, config, os.path.join(self.path, "models"), schedule, [],
-                              tokens_per_batch=config.tokens_per_batch, logger=logger, model_index=i + 1, max_models=len(configs))
+                              tokens_per_epoch=config.tokens_per_epoch, logger=logger, model_index=i + 1, max_models=len(configs))
             trainer.train()
     
     @staticmethod

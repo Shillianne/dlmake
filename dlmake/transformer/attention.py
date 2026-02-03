@@ -131,8 +131,9 @@ class MultiQueryAttention(Attention):
             k = self.kv_cache[0, :B, :, :end_pos].repeat_interleave(self.nhead, dim=1)
             v = self.kv_cache[1, :B, :, :end_pos].repeat_interleave(self.nhead, dim=1)
         else:
-            k = k.repeat_interleave(self.nhead, dim=1)
-            v = v.repeat_interleave(self.nhead, dim=1)
+            # The resulting tensors are not contiguous
+            k = k.expand(-1, self.nhead, -1, -1)
+            v = v.expand(-1, self.nhead, -1, -1)
 
         if self.flash and mask is None:
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
@@ -203,8 +204,9 @@ class GroupedQueryAttention(Attention):
             k = self.kv_cache[0, :B, :, :end_pos].repeat_interleave(self.group_size, dim=1)
             v = self.kv_cache[1, :B, :, :end_pos].repeat_interleave(self.group_size, dim=1)
         else:
-            k = k.repeat_interleave(self.group_size, dim=1)  # shape: (batch, heads, ctx, head_dim)
-            v = v.repeat_interleave(self.group_size, dim=1)  # shape: (batch, heads, ctx, head_dim)
+            # The resulting tensors are not contiguous
+            k = k.expand(-1, self.group_size, -1, -1)  # shape: (batch, heads, ctx, head_dim)
+            v = v.expand(-1, self.group_size, -1, -1)  # shape: (batch, heads, ctx, head_dim)
 
         if self.flash and mask is None:
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
