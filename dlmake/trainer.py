@@ -400,6 +400,7 @@ class Trainer:
                         gpu_data = [v.to(self.device) for v in data]
                         with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                             logits: torch.Tensor = self.model(*gpu_data[:-1])
+                            torch.cuda.empty_cache()
                             loss: torch.Tensor = self.loss_fn(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
                         loss = loss / self.limit
                         acc: torch.Tensor = self.accuracy(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
@@ -423,6 +424,7 @@ class Trainer:
                         gpu_data = [v.to(self.device) for v in data]
                         with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                             logits: torch.Tensor = self.model(*gpu_data[:-1])
+                            torch.cuda.empty_cache()
                             loss: torch.Tensor = self.loss_fn(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
                         loss = loss / self.limit
                         acc: torch.Tensor = self.accuracy(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
