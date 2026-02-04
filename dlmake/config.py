@@ -41,6 +41,7 @@ class Config:
                  max_lr: float = 1e-3,
                  min_lr: float = 1e-6,
                  optimizer = AdamW,
+                 use_fused: bool = True,
                  flash: bool = False,
                  doc_aware: bool = False,
                  verbose: bool = True,
@@ -85,6 +86,7 @@ class Config:
         self.max_lr = max_lr
         self.min_lr = min_lr
         self.optimizer = optimizer
+        self.use_fused = use_fused
         self.flash = flash
         self.doc_aware: bool = doc_aware
         self.verbose = verbose
@@ -114,9 +116,9 @@ class Config:
             config = json.load(f)
         params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_epoch", "nhead", "nlayers",
                   "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim",
-                  "dropout_prob", "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "save_history", "use_val",
-                  "train_size", "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs", "warmup_steps", "shuffle_data",
-                  "new", "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
+                  "dropout_prob", "max_lr", "min_lr", "optimizer", "use_fused", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "save_history",
+                  "use_val", "train_size", "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs", "warmup_steps",
+                  "shuffle_data", "new", "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
         default_types = {
             "ctx_size": int,
             "max_ctx_size": int,
@@ -141,6 +143,7 @@ class Config:
             "max_lr": float,
             "min_lr": float,
             "optimizer": Optimizer,
+            "use_fused": bool,
             "flash": bool,
             "doc_aware": bool,
             "verbose": bool,
@@ -187,6 +190,7 @@ class Config:
             "max_lr": 1e-3,
             "min_lr": 1e-6,
             "optimizer": AdamW,
+            "use_fused": True,
             "flash": False,
             "doc_aware": False,
             "verbose": True,

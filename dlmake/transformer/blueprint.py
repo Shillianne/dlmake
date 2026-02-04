@@ -61,7 +61,7 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
         fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and "cuda" in device
         print(f"Using fused AdamW: {use_fused}")
-        if use_fused:
+        if self.config.use_fused:
             optimizer = self.config.optimizer(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)
         else:
             optimizer = self.config.optimizer(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, is_paged=True)
