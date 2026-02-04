@@ -46,6 +46,7 @@ class Config:
                  verbose: bool = True,
                  compile: bool = False,
                  checkpoint_rate: int = 10,
+                 save_history: bool = False,
                  use_val: bool = False,
                  train_size: float = 0.8,
                  test_size: float = 0.2,
@@ -89,6 +90,7 @@ class Config:
         self.verbose = verbose
         self.compile = compile
         self.checkpoint_rate = checkpoint_rate
+        self.save_history = save_history
         self.use_val = use_val
         self.train_size = train_size
         self.test_size = test_size
@@ -112,9 +114,9 @@ class Config:
             config = json.load(f)
         params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_epoch", "nhead", "nlayers",
                   "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim",
-                  "dropout_prob", "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "use_val", "train_size", 
-                  "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs", "warmup_steps", "shuffle_data", "new",
-                  "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
+                  "dropout_prob", "max_lr", "min_lr", "optimizer", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "save_history", "use_val",
+                  "train_size", "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs", "warmup_steps", "shuffle_data",
+                  "new", "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
         default_types = {
             "ctx_size": int,
             "max_ctx_size": int,
@@ -144,6 +146,7 @@ class Config:
             "verbose": bool,
             "compile": bool,
             "checkpoint_rate": int,
+            "save_history": bool,
             "use_val": bool,
             "train_size": float,
             "test_size": float,
@@ -189,6 +192,7 @@ class Config:
             "verbose": True,
             "compile": False,
             "checkpoint_rate": 10,
+            "save_history": False,
             "use_val": False,
             "train_size": 0.8,
             "test_size": 0.2,
@@ -213,8 +217,13 @@ class Config:
             if param == "optimizer":
                 try:
                     exec(f"from torch.optim import {value}")
-                except Exception as e:
-                    raise e
+                except Exception:
+                    try:
+                        exec(f"from bitsandbytes.optim import {value}")
+                    except Exception as e:
+                        raise e
+                    else:
+                        exec(f"values['{param}'] = {value}")
                 else:
                     exec(f"values['{param}'] = {value}")
             elif param == "nlinear":

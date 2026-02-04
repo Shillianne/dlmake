@@ -107,8 +107,12 @@ class SaveOptions:
         h = hash(config)
         if not os.path.exists(os.path.join(savepath, str(h))):
             os.mkdir(os.path.join(savepath, str(h)))
+        if config.save_history:
+            os.mkdir(os.path.join(savepath, str(h), "history"))
         self.savepath = os.path.join(savepath, str(h))
         self.onnx = onnx
+        self.history = config.save_history
+        self.saves = 0
 
     @staticmethod
     def replace_template(template: str, data: dict, final: bool = False):
@@ -194,7 +198,11 @@ class SaveOptions:
                 dynamo=True
             )
         else:
-            torch.save(model.state_dict(), os.path.join(self.savepath, 'snapshot.pth'))
+            if not self.history:
+                torch.save(model.state_dict(), os.path.join(self.savepath, 'snapshot.pth'))
+            else:
+                torch.save(model.state_dict(), os.path.join(self.savepath, "history", f"snapshot_{self.saves:>03}.pth"))
+                self.saves += 1
         torch.save(meta, os.path.join(self.savepath, 'metadata.pth'))
         data = {
             "table": [
@@ -400,7 +408,6 @@ class Trainer:
                         gpu_data = [v.to(self.device) for v in data]
                         with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                             logits: torch.Tensor = self.model(*gpu_data[:-1])
-                            torch.cuda.empty_cache()
                             loss: torch.Tensor = self.loss_fn(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
                         loss = loss / self.limit
                         acc: torch.Tensor = self.accuracy(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
@@ -424,7 +431,6 @@ class Trainer:
                         gpu_data = [v.to(self.device) for v in data]
                         with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                             logits: torch.Tensor = self.model(*gpu_data[:-1])
-                            torch.cuda.empty_cache()
                             loss: torch.Tensor = self.loss_fn(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
                         loss = loss / self.limit
                         acc: torch.Tensor = self.accuracy(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
