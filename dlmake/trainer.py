@@ -199,7 +199,7 @@ class SaveOptions:
         data = {
             "table": [
                 [(k, v) for k, v in trainer.config.__dict__.items()],
-                [[round(array[-1].item(), 3) for array in [trainer.loss_history, trainer.val_loss, trainer.acc_history, trainer.val_acc]]]
+                [[round(array[-1].item(), 3) for array in [trainer.loss_history, trainer.test_loss, trainer.acc_history, trainer.test_acc]]]
             ],
             "number": [
                 sum(p.numel() for p in model.parameters() if p.requires_grad),
@@ -412,7 +412,7 @@ class Trainer:
                     if self.ddp:
                         dist.all_reduce(test_loss, op=dist.ReduceOp.AVG)
                     if self.master_process:
-                        self.logger(self.test_print_f(loss=test_loss.item(), acc=test_loss.item()))
+                        self.logger(self.test_print_f(loss=test_loss.item(), acc=test_acc.item()))
 
             if (epoch % self.validation_rate == 0 or last_epoch) and self.config.use_val:
                 self.model.eval()
