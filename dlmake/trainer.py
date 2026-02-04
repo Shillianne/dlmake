@@ -466,6 +466,7 @@ class Trainer:
                 param_group['lr'] = lr
             self.optimizer.step()
             torch.cuda.synchronize()
+            torch.cuda.empty_cache()
             end = time.time()
             dt = end - start
             tok_per_sec = (self.train_dataloader.B * self.train_dataloader.T * self.limit * self.ddp_world_size) / dt
