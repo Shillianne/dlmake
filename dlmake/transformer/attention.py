@@ -69,7 +69,7 @@ class MultiHeadAttention(Attention):
         if self.flash and mask is None:
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
         elif self.flash and mask is not None:
-            out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
+            out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask.unsqueeze(1), dropout_p=self.dropout if self.training else 0)
         else:
             att: torch.Tensor = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
             if mask is not None:

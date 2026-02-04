@@ -375,7 +375,7 @@ class Trainer:
             self.optimizer = self.model.inner.configure_parameters(weight_decay=0.1, lr=6e-4, device=self.device)
             self.step = step
         assert isinstance(self.model.inner.blocks, nn.ModuleList), "Selected model must have a blocks segment"
-        self.logger(f"Using Attention method: {self.model.inner.blocks[0]}")
+        self.logger(f"Using Attention method: {self.model.inner.blocks[0].attn.__class__.__name__}")
         self.loss_fn = nn.CrossEntropyLoss()
         self.accuracy = Accuracy(task='multiclass', num_classes=num_classes)
         self.accuracy.to(self.device)
