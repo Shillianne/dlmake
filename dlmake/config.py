@@ -18,6 +18,7 @@ progress_base = {
 
 class Config:
     def __init__(self,
+                 name: str = "model",
                  ctx_size: int = 64,
                  max_ctx_size: int = 256,
                  vocab_size: int = 256,
@@ -63,6 +64,7 @@ class Config:
                  val_progress_config: dict[str, bool] = progress_base,
                  test_progress_config: dict[str, bool] = progress_base,
                  train_progress_config: dict[str, bool] = progress_base):
+        self.name = name
         self.ctx_size = ctx_size
         self.max_ctx_size = max_ctx_size
         self.vocab_size = vocab_size
@@ -114,12 +116,13 @@ class Config:
         from .transformer.attention import MultiHeadAttention, attention_types
         with open(filename, "r") as f:
             config = json.load(f)
-        params = ["ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_epoch", "nhead", "nlayers",
-                  "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim",
-                  "dropout_prob", "max_lr", "min_lr", "optimizer", "use_fused", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate", "save_history",
-                  "use_val", "train_size", "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs", "warmup_steps",
-                  "shuffle_data", "new", "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
+        params = ["name", "ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_epoch", "nhead",
+                  "nlayers", "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim",
+                  "v_head_dim", "dropout_prob", "max_lr", "min_lr", "optimizer", "use_fused", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate",
+                  "save_history", "use_val", "train_size", "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs",
+                  "warmup_steps", "shuffle_data", "new", "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
         default_types = {
+            "name": str,
             "ctx_size": int,
             "max_ctx_size": int,
             "vocab_size": int,
@@ -167,6 +170,7 @@ class Config:
             "train_progress_config": dict
         }
         defaults = {
+            "name": "model",
             "ctx_size": 64,
             "max_ctx_size": 256,
             "vocab_size": 256,
