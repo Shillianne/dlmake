@@ -4,7 +4,6 @@ import pickle
 import torch
 import os
 
-Val = TypeVar("Val", Literal[True], Literal[False])
 
 class BaseDataLoader(ABC):
     def __init__(
@@ -66,6 +65,10 @@ class BaseDataLoader(ABC):
         pass
 
 
+Val = TypeVar("Val", Literal[True], Literal[False])
+DataLoaderType = TypeVar("DataLoaderType", bound=BaseDataLoader)
+
+
 class SplitGenerator(Generic[Val]):
     def __init__(
         self,
@@ -102,14 +105,14 @@ class SplitGenerator(Generic[Val]):
             self.val_size = 0.0
 
     @overload
-    def generate_splits(self: "SplitGenerator[Literal[True]]", dataloader: type[BaseDataLoader], **kwargs) -> tuple[BaseDataLoader, BaseDataLoader, BaseDataLoader]:
+    def generate_splits(self: "SplitGenerator[Literal[True]]", dataloader: type[DataLoaderType], **kwargs) -> tuple[DataLoaderType, DataLoaderType, DataLoaderType]:
         ...
 
     @overload
-    def generate_splits(self: "SplitGenerator[Literal[False]]", dataloader: type[BaseDataLoader], **kwargs) -> tuple[BaseDataLoader, BaseDataLoader]:
+    def generate_splits(self: "SplitGenerator[Literal[False]]", dataloader: type[DataLoaderType], **kwargs) -> tuple[DataLoaderType, DataLoaderType]:
         ...
 
-    def generate_splits(self, dataloader: type[BaseDataLoader], **kwargs):
+    def generate_splits(self, dataloader: type[DataLoaderType], **kwargs):
         batch_size: int = kwargs["batch_size"]
         context_size: int = kwargs["context_size"]
         loaded_tokens: int = kwargs["loaded_tokens"]
@@ -189,3 +192,38 @@ class SplitGenerator(Generic[Val]):
                 ),
             )
 
+
+if __name__ == "__main__":
+    class ExampleDataLoader(BaseDataLoader):
+        def __init__(
+            self,
+            batch_size: int,
+            context_size: int,
+            loaded_tokens: int,
+            tokens_per_epoch: int,
+            split: Literal["train", "test", "val"],
+            min_idx: int,
+            max_idx: int,
+            rank: int,
+            world_size: int
+        ):
+            super().__init__(
+                batch_size,
+                context_size,
+                loaded_tokens,
+                tokens_per_epoch,
+                split,
+                min_idx,
+                max_idx,
+                rank,
+                world_size
+            )
+            self.example_attr = 0
+
+    (train_dataloader, test_dataloader) = SplitGenerator(
+        data_path="",
+        use_val=False
+    ).generate_splits(
+        dataloader=ExampleDataLoader
+    )
+    e = train_dataloader.example_attr
