@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod, ABCMeta
+from typing import Literal
+from .blocks import DecoderBlock
 import torch.nn as nn
 import inspect
 import torch
@@ -99,6 +101,7 @@ class TrainingModel:
     def train(self):
         self.inner.train()
 
+
 class InferenceModel(nn.Module):
     def __init__(self, model: Transformer):
         super(InferenceModel, self).__init__()
@@ -106,8 +109,11 @@ class InferenceModel(nn.Module):
         self.model = model
         self.model.eval()
         self.start_pos = 0
+        self.gen_count = 0
         self.inputs: list[torch.Tensor] = []
+        assert isinstance(self.model.blocks, nn.ModuleList)
         for layer in self.model.blocks:
+            assert isinstance(layer, DecoderBlock)
             layer.attn._is_training = False
             layer.attn.create_kv_cache()
 
@@ -125,3 +131,32 @@ class InferenceModel(nn.Module):
         out = self.model(start_pos=self.start_pos, *args)
         self.start_pos += T
         return out
+
+    def generate(self, sequence: torch.Tensor, max_tokens: int = 0, choice: Literal["probabilistic", "top"] = "probabilistic"):
+        assert max_tokens > 0, f"Can't generate response with a budget of {max_tokens} tokens."
+        assert isinstance(self.model.eos_token, int)
+    
+        sequence = sequence
+        while self.gen_count != max_tokens:
+            with torch.inference_mode():
+                logits = self(sequence)
+                l = logits[:, -1, :]
+                probs = torch.softmax(l, dim=1)
+                _, topk_indeces = torch.topk(probs, 100, dim=-1)
+            p = probs.flatten()
+            indeces = topk_indeces.flatten()
+            rollover = 1
+            if choice == "probabilistic":
+                token = indeces[p[indeces].multinomial(num_samples=1)]
+            elif choice == "top":
+                token = indeces[0].expand(1)
+            while token.item() > self.model.eos_token:
+                if choice == "probabilistic":
+                    token = indeces[p[indeces].multinomial(num_samples=1)]
+                elif choice == "top":
+                    token = indeces[rollover].expand(1)
+                    rollover += 1
+            yield token
+            self.gen_count += 1
+            sequence = token.reshape(1, -1)
+
