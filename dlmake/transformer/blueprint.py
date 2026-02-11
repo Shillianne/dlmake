@@ -58,8 +58,10 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
         ]
         num_decayed_params = sum(p.numel() for p in decay_params)
         num_no_decayed_params = sum(p.numel() for p in no_decay_params)
+        num_params_no_embed = sum(p.numel() for name, p in param_dict.items() if "embedding" not in name)
         print(f"Number of decayed parameter tensors: {len(decay_params)}, with {num_decayed_params:,} parameters.")
         print(f"Number of non-decayed parameter tensors: {len(no_decay_params)}, with {num_no_decayed_params:,} parameters.")
+        print(f"Number of parameters without embedding layer: {num_params_no_embed:,} parameters.")
         fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and "cuda" in device
         print(f"Using fused AdamW: {use_fused}")
