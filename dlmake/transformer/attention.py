@@ -196,17 +196,20 @@ class GroupedQueryAttention(Attention):
         v: torch.Tensor = self.W_value(x)
 
         q = q.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)  # shape: (batch, heads, ctx, head_dim)
+        q = q.view(B, self.n_kv_groups, self.group_size, T, E // self.nhead)  # shape: (batch, kv_group, group_size, ctx, head_dim)
         k = k.view(B, T, self.n_kv_groups, self.head_dim).transpose(1, 2)  # shape: (batch, kv_group, ctx, head_dim)
         v = v.view(B, T, self.n_kv_groups, self.head_dim).transpose(1, 2)  # shape: (batch, kv_group, ctx, head_dim)
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
             self.kv_cache[1, :B, :, start_pos:end_pos] = v
-            k = self.kv_cache[0, :B, :, :end_pos].repeat_interleave(self.group_size, dim=1)
-            v = self.kv_cache[1, :B, :, :end_pos].repeat_interleave(self.group_size, dim=1)
+            k = self.kv_cache[0, :B, :, :end_pos].unsqueeze(2).expand(-1, self.n_kv_groups, self.group_size, -1, -1)
+            v = self.kv_cache[1, :B, :, :end_pos].unsqueeze(2).expand(-1, self.n_kv_groups, self.group_size, -1, -1)
         else:
             # The resulting tensors are not contiguous
-            k = k.expand(-1, self.group_size, -1, -1)  # shape: (batch, heads, ctx, head_dim)
-            v = v.expand(-1, self.group_size, -1, -1)  # shape: (batch, heads, ctx, head_dim)
+            k = k.unsqueeze(2).expand(-1, self.n_kv_groups, self.group_size, -1, -1)  # shape: (batch, kv_group, group_size, ctx, head_dim)
+            v = v.unsqueeze(2).expand(-1, self.n_kv_groups, self.group_size, -1, -1)  # shape: (batch, kv_group, group_size, ctx, head_dim)
+            # k = k.expand(-1, self.group_size, -1, -1)  # shape: (batch, heads, ctx, head_dim)
+            # v = v.expand(-1, self.group_size, -1, -1)  # shape: (batch, heads, ctx, head_dim)
 
         if self.flash and mask is None:
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
@@ -220,7 +223,7 @@ class GroupedQueryAttention(Attention):
             att = self.attn_dropout(att)
             out = att @ v
 
-        out = out.transpose(1, 2).contiguous().view(B, T, E)
+        out = out.view(B, self.nhead, T, E // self.nhead).transpose(1, 2).contiguous().view(B, T, E)
         out = self.out_dropout(self.out_proj(out))
         return out
 
