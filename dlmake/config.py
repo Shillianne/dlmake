@@ -35,6 +35,7 @@ class Config:
                  nlinear_params: Union[List[Any], Dict[str, Any]] = [],
                  dropout_prob: float = 0.0,
                  attention_method: Optional[type] = None,
+                 linear_attention: bool = False,
                  n_kv_groups: Optional[int] = None,
                  q_head_dim: Optional[int] = None,
                  kv_lora_dim: Optional[int] = None,
@@ -81,6 +82,7 @@ class Config:
         self.nlinear_params = nlinear_params
         self.dropout_prob = dropout_prob
         self.attention_method = attention_method
+        self.linear_attention = linear_attention
         self.n_kv_groups = n_kv_groups
         self.q_head_dim = q_head_dim
         self.kv_lora_dim= kv_lora_dim
@@ -117,10 +119,10 @@ class Config:
         with open(filename, "r") as f:
             config = json.load(f)
         params = ["name", "ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_epoch", "nhead",
-                  "nlayers", "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim",
-                  "v_head_dim", "dropout_prob", "max_lr", "min_lr", "optimizer", "use_fused", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate",
-                  "save_history", "use_val", "train_size", "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs",
-                  "warmup_steps", "shuffle_data", "new", "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
+                  "nlayers", "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "linear_attention", "n_kv_groups", "q_head_dim",
+                  "kv_lora_dim", "v_head_dim", "dropout_prob", "max_lr", "min_lr", "optimizer", "use_fused", "flash", "doc_aware", "verbose", "compile",
+                  "checkpoint_rate", "save_history", "use_val", "train_size", "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate",
+                  "train_epochs", "warmup_steps", "shuffle_data", "new", "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
         default_types = {
             "name": str,
             "ctx_size": int,
@@ -139,6 +141,7 @@ class Config:
             "nlinear_params": dict,
             "dropout_prob": float,
             "attention_method": (None.__class__, type),
+            "linear_attention": bool,
             "n_kv_groups": (None.__class__, int),
             "q_head_dim": (None.__class__, int),
             "kv_lora_dim": (None.__class__, int),
@@ -187,6 +190,7 @@ class Config:
             "nlinear_params": {},
             "dropout_prob": 0.0,
             "attention_method": None,
+            "linear_attention": False,
             "n_kv_groups": None,
             "q_head_dim": None,
             "kv_lora_dim": None,

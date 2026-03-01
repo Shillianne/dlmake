@@ -6,9 +6,27 @@ from dlmake import Config
 import math
 
 
+def linear_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
+    b, *h, n, m = q.shape
+    carry: torch.Tensor = torch.zeros((b, *h, m, m), dtype=q.dtype, device=q.device)
+    r = torch.zeros_like(q)
+    for i in range(n):
+        l = k[:, ..., i, :].unsqueeze(-1) @ v[:, ..., i, :].unsqueeze(-2)
+        carry += l * (1.0 / k.size(-1) ** 0.5)
+        r[:, ..., i, :] = (q[:, ..., i, :].unsqueeze(-2) @ carry).squeeze()
+    return r
+
+
 class Attention(nn.Module, ABC):
-    def __init__(self):
+    def __init__(self, config: Config):
         super(Attention, self).__init__()
+        assert (
+            (not config.linear_attention and not config.doc_aware)
+            or
+            (not config.linear_attention and not config.flash)
+            or
+            (not config.doc_aware and not config.flash)
+        )
 
         self._is_training = True
 
@@ -23,12 +41,13 @@ class Attention(nn.Module, ABC):
 
 class MultiHeadAttention(Attention):
     def __init__(self, config: Config):
-        super(MultiHeadAttention, self).__init__()
+        super(MultiHeadAttention, self).__init__(config)
 
         self.embed_dim = config.embed_dim
         self.nhead = config.nhead
         self.dropout = config.dropout_prob
         self.flash = config.flash
+        self.linear_attention = config.linear_attention
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
 
@@ -70,6 +89,8 @@ class MultiHeadAttention(Attention):
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
         elif self.flash and mask is not None:
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask.unsqueeze(1), dropout_p=self.dropout if self.training else 0)
+        elif self.linear_attention:
+            out = linear_attention(q, k, v)
         else:
             att: torch.Tensor = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
             if mask is not None:
@@ -92,13 +113,14 @@ class MultiHeadAttention(Attention):
 
 class MultiQueryAttention(Attention):
     def __init__(self, config: Config) -> None:
-        super(MultiQueryAttention, self).__init__()
+        super(MultiQueryAttention, self).__init__(config)
         assert config.embed_dim % config.nhead == 0, "embedding dimension must be divisible by the number of attention heads"
 
         self.embed_dim = config.embed_dim
         self.nhead = config.nhead
         self.head_dim = config.embed_dim // config.nhead
         self.flash = config.flash
+        self.linear_attention = config.linear_attention
         self.dropout = config.dropout_prob
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
@@ -128,8 +150,8 @@ class MultiQueryAttention(Attention):
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
             self.kv_cache[1, :B, :, start_pos:end_pos] = v
-            k = self.kv_cache[0, :B, :, :end_pos].repeat_interleave(self.nhead, dim=1)
-            v = self.kv_cache[1, :B, :, :end_pos].repeat_interleave(self.nhead, dim=1)
+            k = self.kv_cache[0, :B, :, :end_pos].expand(-1, self.nhead, -1, -1)
+            v = self.kv_cache[1, :B, :, :end_pos].expand(-1, self.nhead, -1, -1)
         else:
             # The resulting tensors are not contiguous
             k = k.expand(-1, self.nhead, -1, -1)
@@ -139,6 +161,8 @@ class MultiQueryAttention(Attention):
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
         elif self.flash and mask is not None:
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
+        elif self.linear_attention:
+            out = linear_attention(q, k, v)
         else:
             att: torch.Tensor = (q @ k.transpose(-2, -1)) * (1.0 / k.size(-1) ** 0.5)
             if mask is not None:
@@ -160,7 +184,7 @@ class MultiQueryAttention(Attention):
 
 class GroupedQueryAttention(Attention):
     def __init__(self, config: Config) -> None:
-        super(GroupedQueryAttention, self).__init__()
+        super(GroupedQueryAttention, self).__init__(config)
         assert config.embed_dim % config.nhead == 0, "embedding dimension must be divisible by the number of attention heads"
         assert config.n_kv_groups is not None, "A number of kv groups is required for Grouped Query Attention"
         assert config.nhead % config.n_kv_groups == 0, "number of attention heads must be divisible by the number of key-value groups"
@@ -169,6 +193,7 @@ class GroupedQueryAttention(Attention):
         self.nhead = config.nhead
         self.head_dim = config.embed_dim // config.nhead
         self.flash = config.flash
+        self.linear_attention = config.linear_attention
         self.dropout = config.dropout_prob
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
@@ -215,6 +240,8 @@ class GroupedQueryAttention(Attention):
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
         elif self.flash and mask is not None:
             out = nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
+        elif self.linear_attention:
+            out = linear_attention(q, k, v)
         else:
             att: torch.Tensor = (q @ k.transpose(-2, -1)) * (1.0 / k.size(-1) ** 0.5)
             if mask is not None:
@@ -237,7 +264,8 @@ class GroupedQueryAttention(Attention):
 
 class MultiHeadLatentAttention(Attention):
     def __init__(self, config: Config):
-        super(MultiHeadLatentAttention, self).__init__()
+        super(MultiHeadLatentAttention, self).__init__(config)
+        assert not config.linear_attention, "For now, Linear Attention is not supported with MLA"
         assert config.kv_lora_dim is not None and config.q_head_dim is not None and config.v_head_dim is not None
 
         self.embed_dim = config.embed_dim
