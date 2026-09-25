@@ -1,6 +1,7 @@
 from typing import Literal, Type, Union, List, Dict, Any, Optional
 from torch.optim import AdamW, Optimizer
 import torch.nn as nn
+import torch
 import json
 
 Module = Type[nn.Module]
@@ -29,12 +30,16 @@ class Config:
                  nhead: int = 1,
                  nlayers: int = 1,
                  bias: bool = True,
+                 dtype: torch.dtype = torch.bfloat16,
                  norm: Module = nn.LayerNorm,
                  norm_params: dict[str, Union[int, float]] = {},
+                 linear_scale: int = 4,
                  nlinear: Module = nn.ReLU,
                  nlinear_params: Union[List[Any], Dict[str, Any]] = [],
                  dropout_prob: float = 0.0,
+                 ff: Optional[type | str] = None,
                  attention_method: Optional[type] = None,
+                 use_rope: bool = True,
                  n_kv_groups: Optional[int] = None,
                  q_head_dim: Optional[int] = None,
                  kv_lora_dim: Optional[int] = None,
@@ -75,12 +80,16 @@ class Config:
         self.nhead = nhead
         self.nlayers = nlayers
         self.bias = bias
+        self.dtype = dtype
         self.norm = norm
         self.norm_params = norm_params
+        self.linear_scale = linear_scale
         self.nlinear = nlinear
         self.nlinear_params = nlinear_params
         self.dropout_prob = dropout_prob
+        self.ff = ff
         self.attention_method = attention_method
+        self.use_rope = use_rope
         self.n_kv_groups = n_kv_groups
         self.q_head_dim = q_head_dim
         self.kv_lora_dim= kv_lora_dim
@@ -114,13 +123,15 @@ class Config:
     @classmethod
     def from_json(cls, filename: str) -> "Config":
         from .transformer.attention import MultiHeadAttention, attention_types
+        from .base.ff import GPTFeedForward, mlps
         with open(filename, "r") as f:
             config = json.load(f)
         params = ["name", "ctx_size", "max_ctx_size", "vocab_size", "embed_dim", "batch_size", "max_batch_size", "tokens_per_epoch", "nhead",
-                  "nlayers", "bias", "norm", "norm_params", "nlinear", "nlinear_params", "attention_method", "n_kv_groups", "q_head_dim", "kv_lora_dim",
-                  "v_head_dim", "dropout_prob", "max_lr", "min_lr", "optimizer", "use_fused", "flash", "doc_aware", "verbose", "compile", "checkpoint_rate",
-                  "save_history", "use_val", "train_size", "test_size", "val_size", "test_rate", "validation_rate", "benchmark_rate", "train_epochs",
-                  "warmup_steps", "shuffle_data", "new", "time_precision", "val_progress_config", "test_progress_config", "train_progress_config"]
+                  "nlayers", "bias", "dtype", "norm", "norm_params", "linear_scale", "nlinear", "nlinear_params", "ff", "attention_method", "use_rope",
+                  "n_kv_groups", "q_head_dim", "kv_lora_dim", "v_head_dim", "dropout_prob", "max_lr", "min_lr", "optimizer", "use_fused", "flash", "doc_aware",
+                  "verbose", "compile", "checkpoint_rate", "save_history", "use_val", "train_size", "test_size", "val_size", "test_rate", "validation_rate",
+                  "benchmark_rate", "train_epochs", "warmup_steps", "shuffle_data", "new", "time_precision", "val_progress_config", "test_progress_config",
+                  "train_progress_config"]
         default_types = {
             "name": str,
             "ctx_size": int,
@@ -133,12 +144,16 @@ class Config:
             "nhead": int,
             "nlayers": int,
             "bias": bool,
+            "dtype": torch.dtype,
             "norm": nn.Module,
             "norm_params": dict,
+            "linear_scale": int,
             "nlinear": nn.Module,
             "nlinear_params": dict,
             "dropout_prob": float,
+            "ff": (None.__class__, type, str),
             "attention_method": (None.__class__, type),
+            "use_rope": bool,
             "n_kv_groups": (None.__class__, int),
             "q_head_dim": (None.__class__, int),
             "kv_lora_dim": (None.__class__, int),
@@ -181,12 +196,16 @@ class Config:
             "nhead": 1,
             "nlayers": 1,
             "bias": True,
+            "dtype": torch.bfloat16,
             "norm": nn.LayerNorm,
             "norm_params": {},
+            "linear_scale": 4,
             "nlinear": nn.ReLU,
             "nlinear_params": {},
             "dropout_prob": 0.0,
+            "ff": None,
             "attention_method": None,
+            "use_rope": True,
             "n_kv_groups": None,
             "q_head_dim": None,
             "kv_lora_dim": None,
@@ -254,6 +273,16 @@ class Config:
                     values[param] = MultiHeadAttention
                 else:
                     raise TypeError(f"The requested attention method ({value}) is not one of the available types ({names}).")
+            elif param == "ff":
+                if value in (names := [mlp.__name__ for mlp in mlps]):
+                    exec(f"from .base.ff import {value}")
+                    exec(f"values['{param}'] = {value}")
+                elif value is None:
+                    values[param] = GPTFeedForward
+                elif value == "custom":
+                    values[param] = "custom"
+                else:
+                    raise TypeError(f"The requested Feed Forward network ({value}) is not one of the available types ({names}).")
             else:
                 # print(param, value, params.index(param), defaults[params.index(param)], default_types[params.index(param)])
                 if not issubclass(value.__class__, default_types[param]):
@@ -263,6 +292,8 @@ class Config:
         for param in set(tuple(params)).difference(set(tuple(defined))):
             if param == "attention_method":
                 values[param] = MultiHeadAttention
+            elif param == "ff":
+                values[param] = GPTFeedForward
             else:
                 values[param] = defaults[param]
 

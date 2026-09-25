@@ -1,8 +1,9 @@
-from typing import Callable, Optional
+from .rope import precompute_rope_params, compute_rope
 from abc import ABC, abstractmethod
-import torch
-import torch.nn as nn
+from typing import Optional
 from dlmake import Config
+import torch.nn as nn
+import torch
 import math
 
 
@@ -31,11 +32,18 @@ class MultiHeadAttention(Attention):
         self.flash = config.flash
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
+        self.use_rope = config.use_rope
 
         self.attn = nn.Linear(in_features=config.embed_dim, out_features=3 * config.embed_dim, bias=config.bias)
         self.proj = nn.Linear(config.embed_dim, config.embed_dim, bias=config.bias)
         self.attn_dropout = nn.Dropout(config.dropout_prob)
         self.proj_dropout = nn.Dropout(config.dropout_prob)
+        if config.use_rope:
+            self.cos: torch.Tensor
+            self.sin: torch.Tensor
+            cos, sin = precompute_rope_params(head_dim=self.embed_dim // self.nhead, max_cxt=config.max_ctx_size)
+            self.register_buffer("cos", cos)
+            self.register_buffer("sin", sin)
         if not self._is_training:
             self.kv_cache: torch.Tensor
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, config.nhead, config.max_ctx_size, config.embed_dim // config.nhead),
@@ -60,6 +68,9 @@ class MultiHeadAttention(Attention):
         q: torch.Tensor = q.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)
         k: torch.Tensor = k.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)
         v: torch.Tensor = v.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)
+        if self.use_rope:
+            q = compute_rope(q, self.cos, self.sin)
+            k = compute_rope(k, self.cos, self.sin)
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
             self.kv_cache[1, :B, :, start_pos:end_pos] = v
@@ -102,6 +113,7 @@ class MultiQueryAttention(Attention):
         self.dropout = config.dropout_prob
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
+        self.use_rope = config.use_rope
 
         self.W_key = nn.Linear(config.embed_dim, self.head_dim, bias=False)
         self.W_value = nn.Linear(config.embed_dim, self.head_dim, bias=False)
@@ -110,7 +122,15 @@ class MultiQueryAttention(Attention):
         self.out_dropout = nn.Dropout(config.dropout_prob)
         self.out_proj = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
 
+        if config.use_rope:
+            self.cos: torch.Tensor
+            self.sin: torch.Tensor
+            cos, sin = precompute_rope_params(head_dim=self.head_dim, max_cxt=config.max_ctx_size)
+            self.register_buffer("cos", cos)
+            self.register_buffer("sin", sin)
+
         if not self._is_training:
+            self.kv_cache: torch.Tensor
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, 1, config.max_ctx_size, self.head_dim),
                                  persistent=False)
 
@@ -125,6 +145,9 @@ class MultiQueryAttention(Attention):
         q = q.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)
         k = k.view(B, T, 1, self.head_dim).transpose(1, 2)
         v = v.view(B, T, 1, self.head_dim).transpose(1, 2)
+        if self.use_rope:
+            q = compute_rope(q, self.cos, self.sin)
+            k = compute_rope(k, self.cos, self.sin)
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
             self.kv_cache[1, :B, :, start_pos:end_pos] = v
@@ -172,6 +195,7 @@ class GroupedQueryAttention(Attention):
         self.dropout = config.dropout_prob
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
+        self.use_rope = config.use_rope
 
         self.W_key = nn.Linear(config.embed_dim, config.n_kv_groups * self.head_dim, bias=False)
         self.W_value = nn.Linear(config.embed_dim, config.n_kv_groups * self.head_dim, bias=False)
@@ -183,7 +207,15 @@ class GroupedQueryAttention(Attention):
         self.out_dropout = nn.Dropout(config.dropout_prob)
         self.out_proj = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
 
+        if config.use_rope:
+            self.cos: torch.Tensor
+            self.sin: torch.Tensor
+            cos, sin = precompute_rope_params(head_dim=self.head_dim, max_cxt=config.max_ctx_size)
+            self.register_buffer("cos",  cos)
+            self.register_buffer("sin", sin)
+
         if not self._is_training:
+            self.kv_cache: torch.Tensor
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, self.n_kv_groups, config.max_ctx_size, self.head_dim),
                                  persistent=False)
 
@@ -199,6 +231,9 @@ class GroupedQueryAttention(Attention):
         q = q.view(B, self.n_kv_groups, self.group_size, T, E // self.nhead)  # shape: (batch, kv_group, group_size, ctx, head_dim)
         k = k.view(B, T, self.n_kv_groups, self.head_dim).transpose(1, 2)  # shape: (batch, kv_group, ctx, head_dim)
         v = v.view(B, T, self.n_kv_groups, self.head_dim).transpose(1, 2)  # shape: (batch, kv_group, ctx, head_dim)
+        if self.use_rope:
+            q = compute_rope(q, self.cos, self.sin)
+            k = compute_rope(k, self.cos, self.sin)
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
             self.kv_cache[1, :B, :, start_pos:end_pos] = v
@@ -255,6 +290,7 @@ class MultiHeadLatentAttention(Attention):
         self.wo = nn.Linear(in_features=config.nhead * config.v_head_dim, out_features=config.embed_dim, bias=False)
 
         if not self._is_training:
+            self.kv_cache: torch.Tensor
             self.register_buffer("kv_cache", torch.zeros(config.max_batch_size, config.max_ctx_size, config.kv_lora_dim), persistent=False)
 
     def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
