@@ -28,17 +28,24 @@ class MultiHeadAttention(Attention):
 
         self.embed_dim = config.embed_dim
         self.nhead = config.nhead
-        self.dropout = config.dropout_prob
-        self.flash = config.flash
+        self.dropout = config.attention.dropout
+        self.flash = config.attention.flash
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
-        self.use_rope = config.use_rope
+        self.use_rope = config.attention.use_rope
 
         self.attn = nn.Linear(in_features=config.embed_dim, out_features=3 * config.embed_dim, bias=config.bias)
         self.proj = nn.Linear(config.embed_dim, config.embed_dim, bias=config.bias)
-        self.attn_dropout = nn.Dropout(config.dropout_prob)
-        self.proj_dropout = nn.Dropout(config.dropout_prob)
-        if config.use_rope:
+        self.attn_dropout = nn.Dropout(config.attention.dropout)
+        self.proj_dropout = nn.Dropout(config.attention.dropout)
+        if config.attention.use_qknorm:
+            self.qk_norm = config.attention.qk_norm_type
+            self.q_norm = self.qk_norm(self.embed_dim // self.nhead, eps=1e-6)
+            self.k_norm = self.qk_norm(self.embed_dim // self.nhead, eps=1e-6)
+        else:
+            self.q_norm = self.k_norm = None
+
+        if config.attention.use_rope:
             self.cos: torch.Tensor
             self.sin: torch.Tensor
             cos, sin = precompute_rope_params(head_dim=self.embed_dim // self.nhead, max_cxt=config.max_ctx_size)
@@ -68,9 +75,16 @@ class MultiHeadAttention(Attention):
         q: torch.Tensor = q.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)
         k: torch.Tensor = k.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)
         v: torch.Tensor = v.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)
+
+        if self.q_norm:
+            q = self.q_norm(q)
+        if self.k_norm:
+            k = self.k_norm(k)
+
         if self.use_rope:
             q = compute_rope(q, self.cos, self.sin)
             k = compute_rope(k, self.cos, self.sin)
+
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
             self.kv_cache[1, :B, :, start_pos:end_pos] = v
@@ -109,20 +123,26 @@ class MultiQueryAttention(Attention):
         self.embed_dim = config.embed_dim
         self.nhead = config.nhead
         self.head_dim = config.embed_dim // config.nhead
-        self.flash = config.flash
-        self.dropout = config.dropout_prob
+        self.flash = config.attention.flash
+        self.dropout = config.attention.dropout
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
-        self.use_rope = config.use_rope
+        self.use_rope = config.attention.use_rope
 
         self.W_key = nn.Linear(config.embed_dim, self.head_dim, bias=False)
         self.W_value = nn.Linear(config.embed_dim, self.head_dim, bias=False)
         self.W_query = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
-        self.attn_dropout = nn.Dropout(config.dropout_prob)
-        self.out_dropout = nn.Dropout(config.dropout_prob)
+        self.attn_dropout = nn.Dropout(config.attention.dropout)
+        self.out_dropout = nn.Dropout(config.attention.dropout)
         self.out_proj = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
 
-        if config.use_rope:
+        if config.attention.use_qknorm:
+            self.q_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
+            self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
+        else:
+            self.q_norm = self.k_norm = None
+
+        if config.attention.use_rope:
             self.cos: torch.Tensor
             self.sin: torch.Tensor
             cos, sin = precompute_rope_params(head_dim=self.head_dim, max_cxt=config.max_ctx_size)
@@ -145,9 +165,16 @@ class MultiQueryAttention(Attention):
         q = q.view(B, T, self.nhead, E // self.nhead).transpose(1, 2)
         k = k.view(B, T, 1, self.head_dim).transpose(1, 2)
         v = v.view(B, T, 1, self.head_dim).transpose(1, 2)
+
+        if self.q_norm:
+            q = self.q_norm(q)
+        if self.k_norm:
+            k = self.k_norm(k)
+
         if self.use_rope:
             q = compute_rope(q, self.cos, self.sin)
             k = compute_rope(k, self.cos, self.sin)
+
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
             self.kv_cache[1, :B, :, start_pos:end_pos] = v
@@ -185,29 +212,35 @@ class GroupedQueryAttention(Attention):
     def __init__(self, config: Config) -> None:
         super(GroupedQueryAttention, self).__init__()
         assert config.embed_dim % config.nhead == 0, "embedding dimension must be divisible by the number of attention heads"
-        assert config.n_kv_groups is not None, "A number of kv groups is required for Grouped Query Attention"
-        assert config.nhead % config.n_kv_groups == 0, "number of attention heads must be divisible by the number of key-value groups"
+        assert config.attention.n_kv_groups is not None, "A number of kv groups is required for Grouped Query Attention"
+        assert config.nhead % config.attention.n_kv_groups == 0, "number of attention heads must be divisible by the number of key-value groups"
 
         self.embed_dim = config.embed_dim
         self.nhead = config.nhead
         self.head_dim = config.embed_dim // config.nhead
-        self.flash = config.flash
-        self.dropout = config.dropout_prob
+        self.flash = config.attention.flash
+        self.dropout = config.attention.dropout
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
-        self.use_rope = config.use_rope
+        self.use_rope = config.attention.use_rope
 
-        self.W_key = nn.Linear(config.embed_dim, config.n_kv_groups * self.head_dim, bias=False)
-        self.W_value = nn.Linear(config.embed_dim, config.n_kv_groups * self.head_dim, bias=False)
-        self.n_kv_groups = config.n_kv_groups
-        self.group_size = config.nhead // config.n_kv_groups
+        self.W_key = nn.Linear(config.embed_dim, config.attention.n_kv_groups * self.head_dim, bias=False)
+        self.W_value = nn.Linear(config.embed_dim, config.attention.n_kv_groups * self.head_dim, bias=False)
+        self.n_kv_groups = config.attention.n_kv_groups
+        self.group_size = config.nhead // config.attention.n_kv_groups
 
         self.W_query = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
-        self.attn_dropout = nn.Dropout(config.dropout_prob)
-        self.out_dropout = nn.Dropout(config.dropout_prob)
+        self.attn_dropout = nn.Dropout(config.attention.dropout)
+        self.out_dropout = nn.Dropout(config.attention.dropout)
         self.out_proj = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
 
-        if config.use_rope:
+        if config.attention.use_qknorm:
+            self.q_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
+            self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
+        else:
+            self.q_norm = self.k_norm = None
+
+        if config.attention.use_rope:
             self.cos: torch.Tensor
             self.sin: torch.Tensor
             cos, sin = precompute_rope_params(head_dim=self.head_dim, max_cxt=config.max_ctx_size)
@@ -231,9 +264,16 @@ class GroupedQueryAttention(Attention):
         q = q.view(B, self.n_kv_groups, self.group_size, T, E // self.nhead)  # shape: (batch, kv_group, group_size, ctx, head_dim)
         k = k.view(B, T, self.n_kv_groups, self.head_dim).transpose(1, 2)  # shape: (batch, kv_group, ctx, head_dim)
         v = v.view(B, T, self.n_kv_groups, self.head_dim).transpose(1, 2)  # shape: (batch, kv_group, ctx, head_dim)
+
+        if self.q_norm:
+            q = self.q_norm(q)
+        if self.k_norm:
+            k = self.k_norm(k)
+
         if self.use_rope:
             q = compute_rope(q, self.cos, self.sin)
             k = compute_rope(k, self.cos, self.sin)
+
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
             self.kv_cache[1, :B, :, start_pos:end_pos] = v
@@ -273,25 +313,41 @@ class GroupedQueryAttention(Attention):
 class MultiHeadLatentAttention(Attention):
     def __init__(self, config: Config):
         super(MultiHeadLatentAttention, self).__init__()
-        assert config.kv_lora_dim is not None and config.q_head_dim is not None and config.v_head_dim is not None
+        assert config.attention.kv_lora_dim is not None and config.attention.q_head_dim is not None and config.attention.v_head_dim is not None
 
         self.embed_dim = config.embed_dim
         self.nheads = config.nhead
-        self.q_head_dim = config.q_head_dim
-        self.kv_lora_dim = config.kv_lora_dim
-        self.v_head_dim = config.v_head_dim
+        self.q_head_dim = config.attention.q_head_dim
+        self.kv_lora_dim = config.attention.kv_lora_dim
+        self.v_head_dim = config.attention.v_head_dim
         self.max_batch_size = config.max_batch_size
         self.max_ctx_size = config.max_ctx_size
 
-        self.wq = nn.Linear(in_features=config.embed_dim, out_features=config.nhead * config.q_head_dim, bias=False)
-        self.wkv_a = nn.Linear(in_features=config.embed_dim, out_features=config.kv_lora_dim, bias=False)
-        self.kv_norm = nn.RMSNorm(config.kv_lora_dim)
-        self.wkv_b = nn.Linear(in_features=config.kv_lora_dim, out_features=config.nhead * (config.q_head_dim + config.v_head_dim), bias=False)
-        self.wo = nn.Linear(in_features=config.nhead * config.v_head_dim, out_features=config.embed_dim, bias=False)
+        self.wq = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.nhead * config.attention.q_head_dim,
+            bias=False
+        )
+        self.wkv_a = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.attention.kv_lora_dim,
+            bias=False
+        )
+        self.kv_norm = nn.RMSNorm(config.attention.kv_lora_dim)
+        self.wkv_b = nn.Linear(
+            in_features=config.attention.kv_lora_dim,
+            out_features=config.nhead * (config.attention.q_head_dim + config.attention.v_head_dim),
+            bias=False
+        )
+        self.wo = nn.Linear(
+            in_features=config.nhead * config.attention.v_head_dim,
+            out_features=config.embed_dim,
+            bias=False
+        )
 
         if not self._is_training:
             self.kv_cache: torch.Tensor
-            self.register_buffer("kv_cache", torch.zeros(config.max_batch_size, config.max_ctx_size, config.kv_lora_dim), persistent=False)
+            self.register_buffer("kv_cache", torch.zeros(config.max_batch_size, config.max_ctx_size, config.attention.kv_lora_dim), persistent=False)
 
     def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, T, _ = x.shape

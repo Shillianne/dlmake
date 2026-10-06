@@ -4,6 +4,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from dlmake.transformer import Transformer, TrainingModel
 from .utils import get_most_likely_row, Logger
 from dlmake import Config, BaseDataLoader, SplitGenerator
+from dlmake.config import ProgressConfig
 from torchmetrics import Accuracy
 from .benchmark import Benchmark
 import torch.distributed as dist
@@ -17,15 +18,15 @@ import time
 import os
 import re
 
-def progress_factory(
-        train_progress: bool = False,
-        model_progress: bool = False,
-        lr: bool = False,
-        norm: bool = False,
-        mfu: bool = False,
-        time: bool = False,
-        tok: bool = False,
-        eta: bool = False):
+def progress_factory(config: ProgressConfig):
+    train_progress = config.train_progress
+    model_progress = config.model_progress
+    lr = config.lr
+    norm = config.norm
+    mfu = config.mfu
+    time = config.time
+    tok = config.tok
+    eta = config.eta
     parameters: list[inspect.Parameter] = []
 
     if train_progress:
@@ -107,11 +108,11 @@ class SaveOptions:
         h = hash(config)
         if not os.path.exists(os.path.join(savepath, str(h))):
             os.mkdir(os.path.join(savepath, str(h)))
-        if config.save_history:
+        if config.training.save_history:
             os.mkdir(os.path.join(savepath, str(h), "history"))
         self.savepath = os.path.join(savepath, str(h))
         self.onnx = onnx
-        self.history = config.save_history
+        self.history = config.training.save_history
         self.saves = 0
 
     @staticmethod
@@ -145,15 +146,15 @@ class SaveOptions:
     def save_image(self, trainer: "Trainer"):
         fig, axes = plt.subplots(1, 2, figsize=(18, 8))
         axes[0].plot(torch.arange(0, len(trainer.loss_history)), [t.cpu() for t in trainer.loss_history], label="Training Loss", c="royalblue")
-        if trainer.config.validation_rate is not None:
-            axes[0].plot(torch.arange(0, trainer.max_epochs, trainer.config.validation_rate - 1), [t.cpu() for t in trainer.val_loss], label="Validation Loss", c="orangered")
+        if trainer.config.training.val_rate is not None:
+            axes[0].plot(torch.arange(0, trainer.max_epochs, trainer.config.training.val_rate - 1), [t.cpu() for t in trainer.val_loss], label="Validation Loss", c="orangered")
         axes[0].set_title("Loss over time")
         axes[0].set_xlabel("Epochs")
         axes[0].set_ylabel("Loss")
         axes[0].legend()
         axes[1].plot(torch.arange(0, len(trainer.acc_history)), [t.cpu() for t in trainer.acc_history], label="Training Accuracy", c="royalblue")
-        if trainer.config.validation_rate is not None:
-            axes[1].plot(torch.arange(0, trainer.max_epochs, trainer.config.validation_rate - 1), [t.cpu() for t in trainer.val_acc], label="Validation Accuracy", c="orangered")
+        if trainer.config.training.val_rate is not None:
+            axes[1].plot(torch.arange(0, trainer.max_epochs, trainer.config.training.val_rate - 1), [t.cpu() for t in trainer.val_acc], label="Validation Accuracy", c="orangered")
         axes[1].set_title("Accuracy over time")
         axes[1].set_xlabel("Epochs")
         axes[1].set_ylabel("Accuracy")
@@ -164,7 +165,7 @@ class SaveOptions:
     def save(self, model: Transformer, trainer: "Trainer", epoch: int):
         meta = {}
         meta['EPOCHS_RUN'] = epoch + 1
-        if trainer.config.use_val:
+        if trainer.config.training.use_val:
             meta["LOADER"] = {
                 "train": trainer.train_dataloader.__dict__,
                 "test": trainer.test_dataloader.__dict__,
@@ -256,7 +257,7 @@ class SaveOptions:
 
         trainer.train_dataloader.resume(**loader_settings['train'])
         trainer.test_dataloader.resume(**loader_settings["test"])
-        if trainer.config.use_val:
+        if trainer.config.training.use_val:
             trainer.val_dataloader.resume(**loader_settings['val'])
             trainer.val_loss = meta["VAL_LOSS"]
             trainer.val_acc = meta["VAL_ACC"]
@@ -285,11 +286,11 @@ class Trainer:
         self.config = config
         self.benchmarks = benchmarks
         self.lr_scheduler: Callable = lr_schedule
-        self.verbose = config.verbose
+        self.verbose = config.training.logging.verbose
         self.batch_size = config.batch_size
-        self.test_rate = self.config.test_rate if self.config.test_rate is not None else 100
-        self.validation_rate = self.config.validation_rate if self.config.validation_rate is not None else 100
-        self.benchmark_rate = (self.config.benchmark_rate if self.config.benchmark_rate is not None else 100) if self.benchmarks else 0
+        self.test_rate = self.config.training.test_rate if self.config.training.test_rate is not None else 100
+        self.validation_rate = self.config.training.val_rate if self.config.training.val_rate is not None else 100
+        self.benchmark_rate = (self.config.training.benchmark_rate if self.config.training.benchmark_rate is not None else 100) if self.benchmarks else 0
         self.logger = logger.log if logger is not None else (lambda x: print(x))
         self.loss_history: list[torch.Tensor] = []
         self.acc_history: list[torch.Tensor] = []
@@ -298,18 +299,18 @@ class Trainer:
         self.test_acc: list[torch.Tensor] = []
         self.m_index = model_index
         self.models = max_models
-        self.val_print_f = progress_factory(**self.config.val_progress_config)
-        self.test_print_f = progress_factory(**self.config.test_progress_config)
-        self.train_print_f = progress_factory(**self.config.train_progress_config)
-        self.max_epochs = self.config.train_epochs
+        self.val_print_f = progress_factory(self.config.training.logging.val_progress_config)
+        self.test_print_f = progress_factory(self.config.training.logging.test_progress_config)
+        self.train_print_f = progress_factory(self.config.training.logging.train_progress_config)
+        self.max_epochs = self.config.training.train_epochs
         for benchmark in self.benchmarks:
             setattr(self, f"{benchmark}_acc", [])
         self.t = 1
         assert "reset" in dir(dataloader), "Provided dataloader needs to have a reset method"
         assert "split" in inspect.getfullargspec(dataloader).args, "The dataloader class needs to produce different loaders for training and validation."
-        self.t = 1000 if config.time_precision == "ms" else 1
-        self.compile = config.compile
-        assert isinstance(self.compile, bool) and isinstance(self.config.new, bool), 'Compile and New have to be boolean arguments'
+        self.t = 1000 if config.training.logging.time_precision == "ms" else 1
+        self.compile = config.training.compile
+        assert isinstance(self.compile, bool) and isinstance(self.config.training.new, bool), 'Compile and New have to be boolean arguments'
 
         if self.ddp:
             assert torch.cuda.is_available(), 'Cannot run DDP on CPU'
@@ -332,13 +333,13 @@ class Trainer:
                 self.device = 'mps'
             self.logger(f"Using device: {self.device}")
 
-        if self.config.use_val:
+        if self.config.training.use_val:
             self.train_dataloader, self.test_dataloader, self.val_dataloader = SplitGenerator(
                 data_path=data_path,
-                use_val=self.config.use_val,
-                train_size=self.config.train_size,
-                test_size=self.config.test_size,
-                val_size=self.config.val_size,
+                use_val=self.config.training.use_val,
+                train_size=self.config.training.train_size,
+                test_size=self.config.training.test_size,
+                val_size=self.config.training.val_size,
             ).generate_splits(
                 dataloader,
                 batch_size=self.config.batch_size,
@@ -353,10 +354,10 @@ class Trainer:
         else:
             self.train_dataloader, self.test_dataloader = SplitGenerator(
                 data_path=data_path,
-                use_val=self.config.use_val,
-                train_size=self.config.train_size,
-                test_size=self.config.test_size,
-                val_size=self.config.val_size,
+                use_val=self.config.training.use_val,
+                train_size=self.config.training.train_size,
+                test_size=self.config.training.test_size,
+                val_size=self.config.training.val_size,
             ).generate_splits(
                 dataloader,
                 batch_size=self.config.batch_size,
@@ -369,7 +370,7 @@ class Trainer:
         self.model = TrainingModel(model)
         self.limit = tokens_per_epoch // (config.batch_size * config.ctx_size * self.ddp_world_size)
         self.save_options = SaveOptions(savepath, config, False)
-        if os.path.exists(os.path.join(self.save_options.savepath, 'snapshot.pth')) and not self.config.new:
+        if os.path.exists(os.path.join(self.save_options.savepath, 'snapshot.pth')) and not self.config.training.new:
             self.save_options.load(self)
         else:
             self.model.inner.to(self.device)
@@ -389,7 +390,7 @@ class Trainer:
         self.accuracy.to(self.device)
 
     def train(self) -> None:
-        assert self.max_epochs >= self.config.checkpoint_rate
+        assert self.max_epochs >= self.config.training.checkpoint_rate
         assert self.step < self.max_epochs, "Training was already completed for the requested number of epochs"
         running_mfu = -1.0
         acc_time = 0.
@@ -421,7 +422,7 @@ class Trainer:
                     if self.master_process:
                         self.logger(self.test_print_f(loss=test_loss.item(), acc=test_acc.item()))
 
-            if (epoch % self.validation_rate == 0 or last_epoch) and self.config.use_val:
+            if (epoch % self.validation_rate == 0 or last_epoch) and self.config.training.use_val:
                 self.model.eval()
                 with torch.inference_mode():
                     val_loss = torch.tensor(0., device=self.device)
@@ -491,7 +492,7 @@ class Trainer:
             self.acc_history.append(accs)
             self.norm_history.append(norm)
             
-            if epoch % self.config.checkpoint_rate == 0 and self.master_process:
+            if epoch % self.config.training.checkpoint_rate == 0 and self.master_process:
                 self.save_options.save(self.model.inner, self, epoch)
 
         if self.master_process:

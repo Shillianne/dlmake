@@ -58,6 +58,7 @@ class HyperParameterSearch:
                  combinations: dict[str, list[dict[str, int | float | str | bool]]],
                  model_class: type,
                  dataloader: type,
+                 data_path: str,
                  path: str):
         os.mkdir(os.path.join(path, "search"))
         self.path = os.path.join(path, "search")
@@ -66,6 +67,7 @@ class HyperParameterSearch:
         os.mkdir(os.path.join(self.path, "models"))
         self.model_class = model_class
         self.dataloader: type = dataloader
+        self.data_path = data_path
         count = 0
         for filepath in configs:
             name = os.path.basename(filepath)
@@ -105,9 +107,26 @@ class HyperParameterSearch:
             config = Config.from_json(os.path.join(self.path, "configs", cfg))
             logger = Logger(os.path.join(self.path, "logs", cfg.split('.')[0] + "_log.log"))
             model: Transformer = self.model_class(config)
-            schedule = lambda epochs: cosine_schedule(epochs, config.max_lr, config.min_lr, config.warmup_steps, int(0.9 * config.train_epochs))
-            trainer = Trainer(model, self.dataloader, config, os.path.join(self.path, "models"), schedule, [],
-                              tokens_per_epoch=config.tokens_per_epoch, logger=logger, model_index=i + 1, max_models=len(configs))
+            schedule = lambda epochs: cosine_schedule(
+                epochs,
+                config.training.max_lr,
+                config.training.min_lr,
+                config.training.warmup_steps, 
+                int(0.9 * config.training.train_epochs)
+            )
+            trainer = Trainer(
+                model,
+                self.dataloader,
+                config,
+                self.data_path,
+                os.path.join(self.path, "models"),
+                schedule,
+                [],
+                tokens_per_epoch=config.training.tokens_per_epoch,
+                logger=logger,
+                model_index=i + 1,
+                max_models=len(configs)
+            )
             trainer.train()
     
     @staticmethod
