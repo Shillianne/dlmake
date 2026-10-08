@@ -34,14 +34,24 @@ class MultiHeadAttention(Attention):
         self.max_ctx_size = config.max_ctx_size
         self.use_rope = config.attention.use_rope
 
-        self.attn = nn.Linear(in_features=config.embed_dim, out_features=3 * config.embed_dim, bias=config.bias)
-        self.proj = nn.Linear(config.embed_dim, config.embed_dim, bias=config.bias)
+        self.attn = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=3 * config.embed_dim,
+            bias=config.bias,
+            dtype=config.dtype
+        )
+        self.proj = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.embed_dim,
+            bias=config.bias,
+            dtype=config.dtype
+        )
         self.attn_dropout = nn.Dropout(config.attention.dropout)
         self.proj_dropout = nn.Dropout(config.attention.dropout)
         if config.attention.use_qknorm:
             self.qk_norm = config.attention.qk_norm_type
-            self.q_norm = self.qk_norm(self.embed_dim // self.nhead, eps=1e-6)
-            self.k_norm = self.qk_norm(self.embed_dim // self.nhead, eps=1e-6)
+            self.q_norm = self.qk_norm(self.embed_dim // self.nhead, eps=1e-6, dtype=config.dtype)
+            self.k_norm = self.qk_norm(self.embed_dim // self.nhead, eps=1e-6, dtype=config.dtype)
         else:
             self.q_norm = self.k_norm = None
 
@@ -129,16 +139,36 @@ class MultiQueryAttention(Attention):
         self.max_ctx_size = config.max_ctx_size
         self.use_rope = config.attention.use_rope
 
-        self.W_key = nn.Linear(config.embed_dim, self.head_dim, bias=False)
-        self.W_value = nn.Linear(config.embed_dim, self.head_dim, bias=False)
-        self.W_query = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
+        self.W_key = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=self.head_dim,
+            bias=config.attention.bias,
+            dtype=config.dtype
+        )
+        self.W_value = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=self.head_dim,
+            bias=config.attention.bias,
+            dtype=config.dtype
+        )
+        self.W_query = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.embed_dim,
+            bias=config.attention.bias,
+            dtype=config.dtype
+        )
         self.attn_dropout = nn.Dropout(config.attention.dropout)
         self.out_dropout = nn.Dropout(config.attention.dropout)
-        self.out_proj = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
+        self.out_proj = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.embed_dim,
+            bias=config.attention.bias,
+            dtype=config.dtype
+        )
 
         if config.attention.use_qknorm:
-            self.q_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
-            self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
+            self.q_norm = nn.RMSNorm(self.head_dim, eps=1e-6, dtype=config.dtype)
+            self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6, dtype=config.dtype)
         else:
             self.q_norm = self.k_norm = None
 
@@ -224,19 +254,39 @@ class GroupedQueryAttention(Attention):
         self.max_ctx_size = config.max_ctx_size
         self.use_rope = config.attention.use_rope
 
-        self.W_key = nn.Linear(config.embed_dim, config.attention.n_kv_groups * self.head_dim, bias=False)
-        self.W_value = nn.Linear(config.embed_dim, config.attention.n_kv_groups * self.head_dim, bias=False)
+        self.W_key = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.attention.n_kv_groups * self.head_dim,
+            bias=config.attention.bias,
+            dtype=config.dtype
+        )
+        self.W_value = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.attention.n_kv_groups * self.head_dim,
+            bias=config.attention.bias,
+            dtype=config.dtype
+        )
         self.n_kv_groups = config.attention.n_kv_groups
         self.group_size = config.nhead // config.attention.n_kv_groups
 
-        self.W_query = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
+        self.W_query = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.embed_dim,
+            bias=config.attention.bias,
+            dtype=config.dtype
+        )
         self.attn_dropout = nn.Dropout(config.attention.dropout)
         self.out_dropout = nn.Dropout(config.attention.dropout)
-        self.out_proj = nn.Linear(config.embed_dim, config.embed_dim, bias=False)
+        self.out_proj = nn.Linear(
+            in_features=config.embed_dim,
+            out_features=config.embed_dim,
+            bias=config.attention.bias,
+            dtype=config.dtype
+        )
 
         if config.attention.use_qknorm:
-            self.q_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
-            self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
+            self.q_norm = nn.RMSNorm(self.head_dim, eps=1e-6, dtype=config.dtype)
+            self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6, dtype=config.dtype)
         else:
             self.q_norm = self.k_norm = None
 
@@ -326,23 +376,27 @@ class MultiHeadLatentAttention(Attention):
         self.wq = nn.Linear(
             in_features=config.embed_dim,
             out_features=config.nhead * config.attention.q_head_dim,
-            bias=False
+            bias=config.attention.bias,
+            dtype=config.dtype
         )
         self.wkv_a = nn.Linear(
             in_features=config.embed_dim,
             out_features=config.attention.kv_lora_dim,
-            bias=False
+            bias=config.attention.bias,
+            dtype=config.dtype
         )
-        self.kv_norm = nn.RMSNorm(config.attention.kv_lora_dim)
+        self.kv_norm = nn.RMSNorm(config.attention.kv_lora_dim, dtype=config.dtype)
         self.wkv_b = nn.Linear(
             in_features=config.attention.kv_lora_dim,
             out_features=config.nhead * (config.attention.q_head_dim + config.attention.v_head_dim),
-            bias=False
+            bias=config.attention.bias,
+            dtype=config.dtype
         )
         self.wo = nn.Linear(
             in_features=config.nhead * config.attention.v_head_dim,
             out_features=config.embed_dim,
-            bias=False
+            bias=config.attention.bias,
+            dtype=config.dtype
         )
 
         if not self._is_training:

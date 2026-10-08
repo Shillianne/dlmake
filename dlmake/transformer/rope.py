@@ -12,7 +12,7 @@ def precompute_rope_params(head_dim: int, theta: int = 10_000, max_cxt: int = 20
     return cos, sin
 
 def compute_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
-    _, ctx_size, head_dim = x.shape
+    *_, ctx_size, head_dim = x.shape
     assert head_dim % 2 == 0, "Head dimension must be even"
 
     x1 = x[..., : head_dim // 2]  # First half

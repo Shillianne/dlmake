@@ -1,0 +1,12 @@
+name: test_mha_simple_json
+ctx_size: 8
+max_ctx_size: 8
+embed_dim: 128
+batch_size: 4
+max_batch_size: 4
+nhead: 8
+attention:
+  attention_method: MultiHeadAttention
+  use_qknorm: true
+  qk_norm_type: RMSNorm
+  flash: false
