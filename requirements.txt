@@ -46,7 +46,7 @@ sympy==1.14.0
 tiktoken==0.14.0
 torch==2.14.1
 torchmetrics==1.9.0
-torchvision==0.29.1+cu132
+torchvision==0.29.1
 triton==3.8.0
 typing-extensions==4.16.0
 urllib3==2.8.0
