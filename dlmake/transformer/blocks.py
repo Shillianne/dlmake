@@ -26,11 +26,8 @@ class DecoderBlock(nn.Module):
         if self.postnorm:
             self.postnorm1 = config.norm(config.embed_dim, bias=config.bias)
             self.postnorm2 = config.norm(config.embed_dim, bias=config.bias)
-        # self.norm1 = config.norm(config.embed_dim, bias=config.bias)
-        # self.ln1 = nn.LayerNorm(config.embed_dim, bias=config.bias)
+
         self.attn: Attention = config.attention.attention_method(config=config)
-        # self.ln2 = nn.LayerNorm(config.embed_dim, bias=config.bias)
-        # self.norm2 = config.norm(config.embed_dim, bias=config.bias)
 
         if not self.use_shallow or layer >= config.feed_forward.shallow_threshold:
             if ff is None:
@@ -44,7 +41,7 @@ class DecoderBlock(nn.Module):
                 self.mlp = shallow_ff(config=config)
             else:
                 assert config.feed_forward.shallow_ff is not None, "Something must have gone terribly wrong for this error to appear"
-                self.mlp = config.feed_forward.shallow_ff(config=config)
+                self.mlp = config.feed_forward.shallow_ff(config=config, shallow=True)
 
     def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         if self.prenorm:

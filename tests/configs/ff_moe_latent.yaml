@@ -1,0 +1,10 @@
+name: test_mha_simple_json
+feed_forward:
+  linear_scale: 3
+  nlinear: SiLU
+  dropout: 0.0
+  ff: MoE
+  bias: false
+  moe:
+    use_latent: true
+    latent_dim: 18

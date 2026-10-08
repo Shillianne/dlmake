@@ -26,7 +26,7 @@ class AttentionSettings:
 
         params = {
             "attention_method": (nn.Module, MultiHeadAttention),
-            "use_rope": (bool, True),
+            "use_rope": (bool, False),
             "use_qknorm": (bool, True),
             "qk_norm_type": (nn.Module, nn.RMSNorm),
             "n_kv_groups": ((None.__class__, int), None),
@@ -41,7 +41,7 @@ class AttentionSettings:
 
         keys = list(kwargs.keys())
         if (diff := set(keys).difference(set(params.keys()))):
-            raise KeyError(f"Attribute '{list(diff)[0]}' not found in LoggingSettings.")
+            raise KeyError(f"Attribute '{list(diff)[0]}' not found in AttentionSettings.")
         values = {}
         for param in keys:
             value = kwargs[param]

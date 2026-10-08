@@ -14,6 +14,7 @@ class FeedForwardSettings:
     shallow_threshold: int
     bias: bool
     moe: MoESettings
+    shallow_moe: MoESettings
 
     @classmethod
     def from_dict(cls, **kwargs):
@@ -27,8 +28,9 @@ class FeedForwardSettings:
             "ff": ((nn.Module, str), GPTFeedForward),
             "shallow_ff": ((None.__class__, nn.Module, str), None),
             "shallow_threshold": (int, 100),
-            "biass": (bool, True),
+            "bias": (bool, True),
             "moe": MoESettings,
+            "shallow_moe": MoESettings,
         }
 
         keys = list(kwargs.keys())

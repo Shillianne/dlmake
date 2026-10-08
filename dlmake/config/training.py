@@ -55,7 +55,7 @@ class TrainingSettings:
     def from_dict(cls, **kwargs):
         keys = list(kwargs.keys())
         if (diff := set(keys).difference(set(params.keys()))):
-            raise KeyError(f"Attribute '{list(diff)[0]}' not found in LoggingSettings.")
+            raise KeyError(f"Attribute '{list(diff)[0]}' not found in TrainingSettings.")
         values = {}
         for param in keys:
             value = kwargs[param]

@@ -68,4 +68,4 @@ def cosine_schedule(iteration: int, max_lr: float, min_lr: float, warmup_steps: 
     return min_lr + coeff * (max_lr - min_lr)
 
 
-__all__ = ["Logger", "get_most_likely_row"]
+__all__ = ["Logger", "get_most_likely_row", "document_aware_mask", "cosine_schedule"]

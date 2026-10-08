@@ -2,7 +2,7 @@ from .feedforward import FeedForwardSettings
 from .attention import AttentionSettings
 from .training import TrainingSettings
 from dataclasses import dataclass
-from yaml import load, Loader, loader
+from yaml import load, Loader
 import torch.nn as nn
 import torch
 import json
@@ -23,6 +23,7 @@ params = {
     "norm": (nn.Module, nn.LayerNorm),
     "prenorm": (bool, True),
     "postnorm": (bool, False),
+    "use_looping": (bool, False),
     "training": TrainingSettings,
     "feed_forward": FeedForwardSettings,
     "attention": AttentionSettings,
@@ -56,7 +57,7 @@ class Config:
             kwargs = json.load(f)
         keys = list(kwargs.keys())
         if (diff := set(keys).difference(set(params.keys()))):
-            raise KeyError(f"Attribute '{list(diff)[0]}' not found in LoggingSettings.")
+            raise KeyError(f"Attribute '{list(diff)[0]}' not found in Config.")
         values = {}
         for param in keys:
             value = kwargs[param]
