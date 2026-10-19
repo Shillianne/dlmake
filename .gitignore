@@ -3,3 +3,5 @@ __pycache__/
 make_dependency_tree.py
 start.sh
 logs/
+*.egg-info/
+build/
