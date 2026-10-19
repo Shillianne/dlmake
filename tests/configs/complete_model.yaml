@@ -1,0 +1,93 @@
+name: FullModel
+ctx_size: 128
+max_ctx_size: 128
+vocab_size: 1024
+embed_dim: 256
+nhead: 8
+nlayers: 4
+batch_size: 4
+max_batch_size: 4
+bias: false
+dtype: bfloat16
+norm: RMSNorm
+prenorm: false
+postnorm: true
+use_looping: true
+training:
+  tokens_per_epoch: 2048
+  max_lr: 1.0e-4
+  min_lr: 1.0e-7
+  optimizer: AdamW
+  use_fused: true
+  compile: true
+  checkpoint_rate: 150
+  save_history: true
+  use_val: true
+  train_size: 0.7
+  test_size: 0.15
+  val_size: 0.15
+  test_rate: 100
+  val_rate: 200
+  benchmark_rate: 300
+  train_epochs: 150000
+  warmup_steps: 1500
+  shuffle_data: true
+  new: true
+  logging:
+    verbose: true
+    time_precision: ms
+    train_progress_config:
+      train_progress: true
+      model_progress: true
+      lr: true
+      norm: true
+      mfu: true
+      time: true
+      tok: true
+      eta: true
+    test_progress_config:
+      train_progress: true
+      model_progress: true
+      lr: true
+      norm: true
+      mfu: true
+      time: true
+      tok: true
+      eta: true
+    val_progress_config:
+      train_progress: true
+      model_progress: true
+      lr: true
+      norm: true
+      mfu: true
+      time: true
+      tok: true
+      eta: true
+feed_forward:
+  linear_scale: 4
+  nlinear: SiLU
+  dropout: 0.0
+  ff: MoE
+  bias: false
+  moe:
+    n_experts: 8
+    experts_per_tok: 2
+    use_shared: true
+    hidden_dim: 512
+    nlinear: SiLU
+    router_scaling: 1.2
+    score_function: softmax
+    bias: false
+attention:
+  attention_method: GroupedQueryAttention
+  use_rope: true
+  use_qknorm: true
+  qk_norm_type: RMSNorm
+  n_kv_groups: 4
+  flash: true
+  doc_aware: false
+  dropout: 0.0
+  bias: false
+looping:
+  n_max_loops: 4
+  looping_behaviour: full

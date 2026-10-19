@@ -221,8 +221,8 @@ class MoE(nn.Module):
             inputs.append(inp)
             scores.append(weights[idx[:, 0], idx[:, 1]])
             token_idxs.append(idx[:, 0])
-        expert_input = torch.vstack(inputs)
-        offsets = torch.cumsum(torch.tensor(idxs), dim=-1, dtype=torch.int32)
+        expert_input = torch.vstack(inputs).to(x.device)
+        offsets = torch.cumsum(torch.tensor(idxs), dim=-1, dtype=torch.int32).to(x.device)
         full_scores = torch.hstack(scores)
         token_idxs = torch.hstack(token_idxs)
 
@@ -243,8 +243,10 @@ class MoE(nn.Module):
         )
         out = out * full_scores.unsqueeze(1)
         y = torch.zeros_like(x)
-        for i in unique_experts:
-            idxs = torch.where(token_idxs == i)[0]
+        for i in range(x.size(0)):
+        # for i in unique_experts:
+            # idxs = torch.where(token_idxs == i)[0]
+            idxs = (token_idxs == i).nonzero(as_tuple=False).view(-1)
             y[i] = torch.sum(out[idxs], dim=0)
 
         if not self.use_latent and not self.use_shared:

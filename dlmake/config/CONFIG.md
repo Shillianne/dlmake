@@ -60,6 +60,17 @@
 | feed_forward.moe.use_latent | bool | False | Whether to use a latent variation of base MoE |
 | feed_forward.moe.latent_dim | int | 1 | Latent dimension to use in place of the model dimension in Latent MoE |
 | feed_forward.moe.latent_shared | bool | False | Whether to use latent embeddings with the shared expert |
+| feed_forward.shallow_moe.n_experts | int | 1 | Number of experts in the MoE layer |
+| feed_forward.shallow_moe.experts_per_tok | int | 1 | Number of contributing experts for each token |
+| feed_forward.shallow_moe.use_shared | bool | False | Whether to use a shared expert that always gets the input |
+| feed_forward.shallow_moe.hidden_dim | int | 128 | Hidden dimension between MoE expert layers |
+| feed_forward.shallow_moe.nlinear | torch.nn.Module | torch.nn.SiLU | Non linear function for the expert network |
+| feed_forward.shallow_moe.router_scaling | float | 1.0 | Scaling to the contributions of each expert to the tokens |
+| feed_forward.shallow_moe.score_function | Literal(softmax, sigmoid) | softmax | Function used to obtain the contribution scores for each expert |
+| feed_forward.shallow_moe.bias | bool | True | Specific bias controller for the MoE gate weights |
+| feed_forward.shallow_moe.use_latent | bool | False | Whether to use a latent variation of base MoE |
+| feed_forward.shallow_moe.latent_dim | int | 1 | Latent dimension to use in place of the model dimension in Latent MoE |
+| feed_forward.shallow_moe.latent_shared | bool | False | Whether to use latent embeddings with the shared expert |
 | attention.attention_method | torch.nn.Module | MultiHeadAttention | The attention method to use in each attention layer |
 | attention.use_rope | bool | False | Whether to use Rotary Positional Embeddings (RoPE) |
 | attention.use_qknorm | bool | True | Whether to apply a normalization to the Q and K matrices in each attention layer |
@@ -72,6 +83,10 @@
 | attention.doc_aware | bool | False | Whether to use a Document Aware causal mask that restricts attention between tokens of the same document |
 | attention.dropout | float | 0.0 | Specific dropout controller for attention layers (MultiHeadLatentAttention excluded) |
 | attention.bias | bool | True | Specific bias controller for weights in attention layers |
+| looping.n_max_loops | int | 1 | Maximum number of loops that can be performed |
+| looping.looping_behaviour | Literal(full, end) | full | The behavior of the loops. Can loop all layers (full) or all except the first one (end) |
+| looping.q.value | (float, None) | 0.9 | The value of Q, used for determining when a token stops looping |
+| looping.q.source | Literal(manual, data) | manual | The origin of the value of Q, can be manually set of given by the data |
 
 
 ## ProgressConfig configuration

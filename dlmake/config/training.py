@@ -1,14 +1,14 @@
 from torch.optim import Optimizer, AdamW
 from .logging import LoggingSettings
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Type
 
 
 params = {
     "tokens_per_epoch": (int, 1024),
     "max_lr": (float, 1e-3),
     "min_lr": (float, 1e-6),
-    "optimizer": (Optimizer, AdamW),
+    "optimizer": (Type[Optimizer], AdamW),
     "use_fused": (bool, True),
     "compile": (bool, False),
     "checkpoint_rate": (int, 10),
@@ -33,7 +33,7 @@ class TrainingSettings:
     tokens_per_epoch: int
     max_lr: float
     min_lr: float
-    optimizer: Optimizer
+    optimizer: Type[Optimizer]
     use_fused: bool
     compile: bool
     checkpoint_rate: int

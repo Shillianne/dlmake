@@ -14,7 +14,7 @@ class Attention(nn.Module, ABC):
         self._is_training = True
 
     @abstractmethod
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         pass
 
     @abstractmethod
@@ -66,7 +66,7 @@ class MultiHeadAttention(Attention):
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, config.nhead, config.max_ctx_size, config.embed_dim // config.nhead),
                                  persistent=False)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Forward method of the MultiHeadAttention class.
 
@@ -92,8 +92,8 @@ class MultiHeadAttention(Attention):
             k = self.k_norm(k)
 
         if self.use_rope:
-            q = compute_rope(q, self.cos, self.sin)
-            k = compute_rope(k, self.cos, self.sin)
+            q = compute_rope(q, self.cos, self.sin, position)
+            k = compute_rope(k, self.cos, self.sin, position)
 
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
@@ -184,7 +184,7 @@ class MultiQueryAttention(Attention):
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, 1, config.max_ctx_size, self.head_dim),
                                  persistent=False)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, T, E = x.shape
         end_pos = start_pos + T
 
@@ -202,8 +202,8 @@ class MultiQueryAttention(Attention):
             k = self.k_norm(k)
 
         if self.use_rope:
-            q = compute_rope(q, self.cos, self.sin)
-            k = compute_rope(k, self.cos, self.sin)
+            q = compute_rope(q, self.cos, self.sin, position)
+            k = compute_rope(k, self.cos, self.sin, position)
 
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
@@ -302,7 +302,7 @@ class GroupedQueryAttention(Attention):
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, self.n_kv_groups, config.max_ctx_size, self.head_dim),
                                  persistent=False)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, T, E = x.shape
         end_pos = start_pos + T
 
@@ -321,8 +321,8 @@ class GroupedQueryAttention(Attention):
             k = self.k_norm(k)
 
         if self.use_rope:
-            q = compute_rope(q, self.cos, self.sin)
-            k = compute_rope(k, self.cos, self.sin)
+            q = compute_rope(q, self.cos, self.sin, position)
+            k = compute_rope(k, self.cos, self.sin, position)
 
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
@@ -403,7 +403,7 @@ class MultiHeadLatentAttention(Attention):
             self.kv_cache: torch.Tensor
             self.register_buffer("kv_cache", torch.zeros(config.max_batch_size, config.max_ctx_size, config.attention.kv_lora_dim), persistent=False)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, T, _ = x.shape
         end_pos = start_pos + T
 
