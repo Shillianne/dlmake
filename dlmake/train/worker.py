@@ -185,7 +185,7 @@ class Worker:
                             test_acc = torch.tensor(0., device=self.device)
                         i = 0
                         for i, data in enumerate(test_dataloader):
-                            gpu_data = [v.to(self.device) for v in data]
+                            gpu_data = [v.to(self.device) if i != len(data) - 1 else v.to(self.device).contiguous() for i, v in enumerate(data)]
                             with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                                 logits: torch.Tensor = model(*gpu_data[:-1])
                                 if self.config.use_looping:
@@ -230,7 +230,7 @@ class Worker:
                             val_acc = torch.tensor(0., device=self.device)
                         i = 0
                         for i, data in enumerate(val_dataloader):
-                            gpu_data = [v.to(self.device) for v in data]
+                            gpu_data = [v.to(self.device) if i != len(data) - 1 else v.to(self.device).contiguous() for i, v in enumerate(data)]
                             with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                                 logits: torch.Tensor = model(*gpu_data[:-1])
                                 if self.config.use_looping:
@@ -275,7 +275,7 @@ class Worker:
                 optimizer.zero_grad()
 
                 for i, data in enumerate(train_dataloader):
-                    gpu_data = [v.to(self.device) for v in data]
+                    gpu_data = [v.to(self.device) if i != len(data) - 1 else v.to(self.device).contiguous() for i, v in enumerate(data)]
                     if self.ddp:
                         setattr(model.inner, "require_backward_grad_sync", (i == self.limit - 1))
                     with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
