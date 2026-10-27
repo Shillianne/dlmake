@@ -99,8 +99,11 @@ class Trainer:
             ).decode().strip().split(" ")[0])
         else:
             p1 = subprocess.Popen(["free", "-m"], stdout=subprocess.PIPE)
-            p2 = subprocess.Popen(["awk", "'{print $2}'"], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p1.wait()
+            p2 = subprocess.Popen(["awk", "{print $2}"], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p2.wait()
             p3 = subprocess.Popen(["head", "-n", "2"], stdin=p2.stdout, stdout=subprocess.PIPE)
+            p3.wait()
             self.gpu_mib = int(subprocess.check_output(["tail", "-n", "1"], stdin=p3.stdout).decode().strip())
 
         if not self.testing and not os.path.exists(savepath):
