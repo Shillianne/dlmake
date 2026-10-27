@@ -86,9 +86,22 @@ class Trainer:
         self.kwargs = kwargs
         self.testing = int(os.environ.get("DLMAKE_TESTING", -1)) != -1
 
-        self.gpu_mib = int(subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader"]
-        ).decode().strip().split(" ")[0])
+        try:
+            subprocess.check_output(["nvidia-smi"])
+        except FileNotFoundError:
+            use_gpu = False
+        else:
+            use_gpu = True
+
+        if use_gpu:
+            self.gpu_mib = int(subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader"]
+            ).decode().strip().split(" ")[0])
+        else:
+            p1 = subprocess.Popen(["free", "-m"], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(["awk", "'{print $2}'"], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p3 = subprocess.Popen(["head", "-n", "2"], stdin=p2.stdout, stdout=subprocess.PIPE)
+            self.gpu_mib = int(subprocess.check_output(["tail", "-n", "1"], stdin=p3.stdout).decode().strip())
 
         if not self.testing and not os.path.exists(savepath):
             os.mkdir(savepath)
