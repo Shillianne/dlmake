@@ -9,7 +9,7 @@ description = "A library that groups all necesities for training and evaluating 
 readme = "README.md"
 requires-python = ">=3.12.0"
 dependencies = [
-    "matplotlib>=3.10.8", "tiktoken>=0.12.0", "torchmetrics==1.9.0", "torchvision==0.29.1", "bitsandbytes==0.49.1"
+    "matplotlib>=3.10.8", "tiktoken>=0.12.0", "torchmetrics==1.9.0", "torchvision==0.29.1", "bitsandbytes==0.49.1", "pyyaml==6.0.3"
 ]
 keywords = ["Python", "Machine Learning"]
 classifiers = [

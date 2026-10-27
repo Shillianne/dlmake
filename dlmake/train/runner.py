@@ -1,4 +1,3 @@
-from .server import TrainingServer
 from dlmake import Config
 import subprocess
 import requests
@@ -10,6 +9,7 @@ class Runner:
         self.config = config
 
     def run_server(self):
+        from .server import TrainingServer
         server = TrainingServer(self.config)
         server.run()
 
