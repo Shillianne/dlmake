@@ -304,8 +304,9 @@ class Worker:
                 norm = nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
                 scheduler.step()
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
+                if self.device == "cuda":
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
                 end = time.time()
                 dt = end - start
                 tok_per_sec = (train_dataloader.B * train_dataloader.T * self.limit * self.ddp_world_size) / dt
