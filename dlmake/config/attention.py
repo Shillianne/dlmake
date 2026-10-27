@@ -16,7 +16,7 @@ class AttentionSettings:
     v_head_dim: Optional[int]
     kv_lora_dim: Optional[int]
     flash: bool
-    doc_aware: bool
+    # doc_aware: bool
     dropout: float
     bias: bool
 
@@ -34,7 +34,7 @@ class AttentionSettings:
             "v_head_dim": ((None.__class__, int), None),
             "kv_lora_dim": ((None.__class__, int), None),
             "flash": (bool, False),
-            "doc_aware": (bool, False),
+            # "doc_aware": (bool, False),
             "dropout": (float, 0.0),
             "bias": (bool, True),
         }

@@ -16,9 +16,15 @@
 	"use_looping": true,
 	"training": {
 		"tokens_per_epoch": 2048,
+		"loaded_tokens": 8192,
 		"max_lr": 1e-4,
 		"min_lr": 1e-7,
 		"optimizer": "Adam",
+		"scheduler": "CosineAnnealingLR",
+		"scheduler_options": {
+			"T_max": 150000
+		},
+		"loss": "OuroLoss",
 		"use_fused": false,
 		"compile": true,
 		"checkpoint_rate": 150,
@@ -101,7 +107,6 @@
 		"v_head_dim": 100,
 		"kv_lora_dim": 200,
 		"flash": true,
-		"doc_aware": true,
 		"dropout": 0.1,
 		"bias": false
 	}

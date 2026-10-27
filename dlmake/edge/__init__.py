@@ -1,1 +1,1 @@
-from .looping import OuroExitGate, OuroLoss
+from .looping import OuroExitGate, OuroLoss, LoopingAccuracy

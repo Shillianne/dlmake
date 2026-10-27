@@ -9,6 +9,10 @@ import math
 
 class Attention(nn.Module, ABC):
     def __init__(self):
+        """
+        Base class for all attention methods.
+        """
+
         super(Attention, self).__init__()
 
         self._is_training = True
@@ -24,6 +28,17 @@ class Attention(nn.Module, ABC):
 
 class MultiHeadAttention(Attention):
     def __init__(self, config: Config):
+        """
+        Basic Multi-Head Attention with KV cache
+
+        Arguments:
+            - config (Config): The configuration of the current model.
+
+        This class mimics the implementation of the original GPT2 transformer, but adds certain features to optimize it or make it interchangeable
+        with the other attention classes. These additions include a KV cache, QK normalization, RoPE and flash attention, all accessible and 
+        customiazble with `Config`.
+        """
+
         super(MultiHeadAttention, self).__init__()
 
         self.embed_dim = config.embed_dim
@@ -127,6 +142,17 @@ class MultiHeadAttention(Attention):
 
 class MultiQueryAttention(Attention):
     def __init__(self, config: Config) -> None:
+        """
+        Multi Query Attention class
+
+        Arguments:
+            - config (Config): The configuration of the current model.
+
+        This class modifies the base Multi-Head Attention class by joining the query, key and value projected inputs into a single
+        head, reducing computational costs but reducing model quality in return. Besides this change, this class contains all the
+        same modifications as MHA (KV cache, QK norm, RoPE, flash attention).
+        """
+
         super(MultiQueryAttention, self).__init__()
         assert config.embed_dim % config.nhead == 0, "embedding dimension must be divisible by the number of attention heads"
 
@@ -240,6 +266,16 @@ class MultiQueryAttention(Attention):
 
 class GroupedQueryAttention(Attention):
     def __init__(self, config: Config) -> None:
+        """
+        Implementation of Grouped Query Attetion.
+
+        Arguments:
+            - config (Config): The configuration of the current model.
+
+        This class adapts Multi Query Attention's compromising approach to the performance of the model by setting a number of groups of attention heads,
+        all heads within a group sharing the same query, key and value tensors. This consumes more memory and compute than MQA, but it improves model performance.
+        In practice, it's barely worse than MHA while improving memory usage and inference speed.
+        """
         super(GroupedQueryAttention, self).__init__()
         assert config.embed_dim % config.nhead == 0, "embedding dimension must be divisible by the number of attention heads"
         assert config.attention.n_kv_groups is not None, "A number of kv groups is required for Grouped Query Attention"
@@ -362,6 +398,18 @@ class GroupedQueryAttention(Attention):
 
 class MultiHeadLatentAttention(Attention):
     def __init__(self, config: Config):
+        """
+        Implementation of Multi-Head Latent Attention from the Deepseek team.
+
+        Arguments:
+            - config (Config): The configuration of the current model
+
+        This attention method compreses the key and value tensors into a latent space that also serves as the KV cache space. By allowing the model
+        to learn how to best project into the inputs into this latent space and by exploiting some algebraic properties, MLA obtains better memory usage
+        and inference speed while improving model performance with respect to MHA. However, external studies have shown that these gains only start to show
+        in larger models, so it's recommended to use GQA instead of this attention for smaller models.
+        """
+
         super(MultiHeadLatentAttention, self).__init__()
         assert config.attention.kv_lora_dim is not None and config.attention.q_head_dim is not None and config.attention.v_head_dim is not None
 

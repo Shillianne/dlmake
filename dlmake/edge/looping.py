@@ -1,3 +1,4 @@
+from torchmetrics import Accuracy
 from typing import Literal
 from dlmake import Config
 import torch.nn as nn
@@ -32,3 +33,16 @@ class OuroLoss(nn.Module):
         for y, u in zip(pred, probs):
             loss += self.ce((y * u).view(-1, y.shape[-1]), target.view(-1)) - self.beta * self.kl(torch.log(u + 1e-7), dist)
         return loss
+
+
+class LoopingAccuracy(nn.Module):
+    def __init__(self, config: Config):
+        super(LoopingAccuracy, self).__init__()
+
+        self.accuracy = Accuracy(task="multiclass", num_classes=config.vocab_size)
+        
+    def forward(self, pred: torch.Tensor, target: torch.Tensor):
+        accs: list[torch.Tensor] = []
+        for y in pred:
+            accs.append(self.accuracy(y.view(-1, y.shape[-1]), target.view(-1)))
+        return torch.hstack(accs)

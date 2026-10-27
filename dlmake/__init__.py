@@ -1,18 +1,18 @@
 from .config import Config
-from .edge import OuroExitGate, OuroLoss
+from .edge import OuroExitGate, OuroLoss, LoopingAccuracy
 from .benchmark import Benchmark
 from .base import *
 from .dataloader import BaseDataLoader, SplitGenerator
 from .transformer import *
 from .utils import *
-from .trainer import Trainer
-from .search import HyperParameterSearch
+from .train import Trainer
 
 
 __all__ = [
     "Config",
     "OuroExitGate",
     "OuroLoss",
+    "LoopingAccuracy",
     "Benchmark",
     "GPTFeedForward",
     "LlamaFeedForward",
@@ -31,7 +31,5 @@ __all__ = [
     "BaseTransformer",
     "precompute_rope_params",
     "compute_rope",
-    "Logger",
     "Trainer",
-    "HyperParameterSearch",
 ]

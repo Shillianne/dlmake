@@ -1,5 +1,3 @@
-from os import O_NONBLOCK
-
 from .feedforward import FeedForwardSettings
 from .attention import AttentionSettings
 from .training import TrainingSettings
