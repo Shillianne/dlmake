@@ -2,17 +2,6 @@ import torch
 from torch.nn import functional as F
 import math
 
-class Logger:
-    def __init__(self, filename: str, new: bool = True):
-        self.filename = filename
-        if new:
-            with open(filename, "w") as _:
-                pass
-
-    def log(self, msg: str):
-        with open(self.filename, "a") as f:
-            f.write(msg + "\n")
-        print(msg)
 
 def get_most_likely_row(tokens: torch.Tensor, mask: torch.Tensor, logits: torch.Tensor):
     shift_logits = (logits[..., :-1, :]).contiguous()
@@ -68,4 +57,4 @@ def cosine_schedule(iteration: int, max_lr: float, min_lr: float, warmup_steps: 
     return min_lr + coeff * (max_lr - min_lr)
 
 
-__all__ = ["Logger", "get_most_likely_row", "document_aware_mask", "cosine_schedule"]
+__all__ = ["get_most_likely_row", "document_aware_mask", "cosine_schedule"]

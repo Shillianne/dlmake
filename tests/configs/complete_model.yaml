@@ -18,6 +18,10 @@ training:
   max_lr: 1.0e-4
   min_lr: 1.0e-7
   optimizer: AdamW
+  scheduler: CosineAnnealingLR
+  scheduler_options:
+    T_max: 150000
+  loss: OuroLoss
   use_fused: true
   compile: true
   checkpoint_rate: 150
@@ -85,7 +89,6 @@ attention:
   qk_norm_type: RMSNorm
   n_kv_groups: 4
   flash: true
-  doc_aware: false
   dropout: 0.0
   bias: false
 looping:

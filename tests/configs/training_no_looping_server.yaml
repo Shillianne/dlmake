@@ -1,0 +1,69 @@
+name: TrainingTestNoServer
+ctx_size: 32
+max_ctx_size: 32
+vocab_size: 1024
+embed_dim: 16
+nhead: 4
+nlayers: 8
+batch_size: 4
+max_batch_size: 4
+bias: false
+dtype: bfloat16
+norm: RMSNorm
+prenorm: false
+postnorm: true
+use_looping: false
+training:
+  tokens_per_epoch: 2048
+  loaded_tokens: 8192
+  max_lr: 1.0e-4
+  min_lr: 1.0e-7
+  optimizer: AdamW
+  scheduler: OneCycleLR
+  scheduler_options:
+    max_lr: 1.0e-3
+    total_steps: 25
+  loss: CrossEntropyLoss
+  use_fused: true
+  compile: true
+  checkpoint_rate: 150
+  save_history: false
+  use_val: false
+  train_size: 0.8
+  test_size: 0.2
+  val_size: 0.0
+  test_rate: 100
+  train_epochs: 25
+  warmup_steps: 1500
+  shuffle_data: true
+  new: true
+  server:
+    host: 127.0.0.1
+    port: 21321
+  logging:
+    verbose: true
+    time_precision: ms
+    train_progress_config:
+      train_progress: true
+      model_progress: false
+      lr: true
+      norm: true
+      mfu: true
+      time: true
+      tok: true
+      eta: true
+feed_forward:
+  linear_scale: 4
+  nlinear: GELU
+  dropout: 0.0
+  ff: GPTFeedForward
+  bias: false
+attention:
+  attention_method: GroupedQueryAttention
+  use_rope: true
+  use_qknorm: true
+  qk_norm_type: RMSNorm
+  n_kv_groups: 2
+  flash: true
+  dropout: 0.0
+  bias: false

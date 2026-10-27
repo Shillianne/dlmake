@@ -1,0 +1,35 @@
+name: GPT2
+ctx_size: 1024
+max_ctx_size: 1024
+vocab_size: 50257
+embed_dim: 768
+nhead: 12
+nlayers: 12
+batch_size: 2
+max_batch_size: 2
+bias: false
+dtype: float32
+norm: LayerNorm
+prenorm: true
+training:
+  tokens_per_epoch: 8192
+  compile: true
+  train_epochs: 100
+  scheduler_options:
+    max_lr: 1.0e-3
+    total_steps: 100
+  logging:
+    train_progress_config:
+      train_progress: true
+      model_progress: false
+      lr: true
+      norm: true
+      mfu: true
+      time: true
+      tok: true
+      eta: true
+attention:
+  attention_method: MultiHeadAttention
+  use_qknorm: false
+  flash: true
+

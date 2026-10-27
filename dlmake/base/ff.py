@@ -2,6 +2,7 @@ import math
 from dlmake import Config
 import torch.nn as nn
 import torch
+import os
 
 class GPTFeedForward(nn.Module):
     def __init__(self, config: Config, **kwargs):
@@ -221,11 +222,16 @@ class MoE(nn.Module):
             inputs.append(inp)
             scores.append(weights[idx[:, 0], idx[:, 1]])
             token_idxs.append(idx[:, 0])
-        expert_input = torch.vstack(inputs).to(x.device)
+        expert_input = torch.vstack(inputs).to(self.expert_w1.dtype).to(x.device)
         offsets = torch.cumsum(torch.tensor(idxs), dim=-1, dtype=torch.int32).to(x.device)
         full_scores = torch.hstack(scores)
         token_idxs = torch.hstack(token_idxs)
 
+        # if int(os.environ.get("DLMAKE_TESTING", -1)) != -1:
+        #     print(expert_input.dtype)
+        #     print(unique_experts.dtype)
+        #     print(self.expert_w1.dtype)
+        #     print(offsets.dtype)
         w1 = torch.nn.functional.grouped_mm(
             mat_a=expert_input,
             mat_b=self.expert_w1[unique_experts].transpose(-1, -2),

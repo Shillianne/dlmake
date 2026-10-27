@@ -21,7 +21,11 @@
 | training.tokens_per_epoch | int | 1024 | How many tokens are consumed by the model in a single accumulated forward pass |
 | training.max_lr | float | 1e-3 | The maximum learning rate during training |
 | training.min_lr | float | 1e-6 | The minimum learning rate during training |
-| training.optimizer | torch.optim.Optimizer | torch.optim.AdamW | Optimizer used during training |
+| training.optimizer | (torch.optim.Optimizer, Literal(custom)) | torch.optim.AdamW | Optimizer used during training. Can be set to custom for using a custom defined one. |
+| training.loss | (nn.Module, Literal(custom)) | nn.CrossEntropyLoss | Loss function used during training. Can be set to custom for using a custom defined one. |
+| training.accuracy | (nn.Module, Metric, Literal(custom)) | torchmetrics.Accuracy | The accuracy function used during training. Can be set to custom for using a custom defined one. |
+| training.scheduler | (torch.optim.lr_scheduler.LRScheduler, Literal(custom)) | torch.optim.lr_scheduler.OneCycleLR | Scheduler used during training. Can be set to custom for using a custom defined one. |
+| training.scheduler_options | GeneralParams | - | A setting that allows any variable names and values for the customization of the parameters of the scheduler |
 | training.use_fused | bool | True | Whether to use the fused optimizer implementation for faster weight updates |
 | training.compile | bool | False | Whether to compile the model (can fail depending on specific model implementation) |
 | training.checkpoint_rate | int | 10 | How often a checkpoint of the model is saved |
@@ -37,6 +41,9 @@
 | trainng.warmup_steps | int | 150 | How many steps of training are dedicated to increasing the learning rate |
 | training.shuffle_data | bool | False | Whether to shuffle the training samples after every loop |
 | training.new | bool | True | Whether this is a new model (for restarting stopped training runs) |
+| training.server.host | str | 127.0.0.1 | The host for the server used during training |
+| training.server.port | int | 38267 | The port for the server used during training |
+| training.server.vram_heartbeat | float | 5.0 | The number of seconds between checking VRAM usage during training |
 | training.logging.verbose | bool | True | Level of logging during training |
 | training.logging.time_precision | Literal(s, ms) | ms | The units for the duration of each model pass |
 | training.logging.val_progress_config | ProgressConfig | - | Configuration for what stats to show in each epoch log of validation |
@@ -80,7 +87,7 @@
 | attention.v_head_dim | (int, None) | None | The number of embedding dimensions the V matrix has in MultiHead Latent Attention |
 | attention.kv_lora_dim | (int, None) | None | The number of embedding dimensions of the KV low rank projection space in MultiHead Latent Attention |
 | attention.flash | bool | False | Whether to use Flash Attention in each attention layer (not supported in MultiHeadLatentAttention due to its implementation) |
-| attention.doc_aware | bool | False | Whether to use a Document Aware causal mask that restricts attention between tokens of the same document |
+| attention.doc_aware | bool | False | Whether to use a Document Aware causal mask that restricts attention between tokens of the same document (currently not available) |
 | attention.dropout | float | 0.0 | Specific dropout controller for attention layers (MultiHeadLatentAttention excluded) |
 | attention.bias | bool | True | Specific bias controller for weights in attention layers |
 | looping.n_max_loops | int | 1 | Maximum number of loops that can be performed |

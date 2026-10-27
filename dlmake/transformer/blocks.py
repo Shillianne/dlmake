@@ -13,6 +13,20 @@ class DecoderBlock(nn.Module):
         ff: Optional[nn.Module] = None,
         shallow_ff: Optional[nn.Module] = None,
     ):
+        """
+        Class representing a single Transformer block.
+
+        Arguments:
+            - config (Config): The configuration of the current model.
+            - layer (int): The layer or index of this block.
+            - ff (Module | None): An optional feed forwawrd network to use in the model.
+            - shallow_ff (Module | None): An optional shallow feed forwawrd network to use in the early layers model.
+
+        Through the use of the `layer` argument, the Transformer block is aware of it's position within the model, and this
+        allows the customization of attention methods or feed forward architectures depending on how deep they are within the
+        model.
+        """
+
         super(DecoderBlock, self).__init__()
         self.use_shallow = config.feed_forward.shallow_ff is not None
         assert config.attention.attention_method is not None, "Something must have gone terribly wrong for this error to appear"

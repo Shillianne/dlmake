@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod, ABCMeta
+from typing import Literal, Optional, Type
 from dlmake import Config, OuroExitGate
-from typing import Literal, Optional
 from .blocks import DecoderBlock
 import torch.nn as nn
 import inspect
@@ -13,15 +13,15 @@ class TransformerMeta(ABCMeta, type):
         if "__init__" not in attrs.keys():
             raise AttributeError("An __init__ method needs to be present within the '" + clsname + "' class")
         init = attrs["__init__"]
-        def new_init(self, *args):
-            init(self, *args)
+        def new_init(self, *args, **kwargs):
+            init(self, *args, **kwargs)
             self.apply(self._init_weights)
         attrs["__init__"] = new_init
         return super(TransformerMeta, cls).__new__(cls, clsname, bases, attrs)
             
 
 class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         super(Transformer, self).__init__()
         self.config: Config = args[0]
 
@@ -48,7 +48,7 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
         """
         pass
     
-    def configure_parameters(self, weight_decay: float, lr: float, device: str) -> torch.optim.Optimizer:
+    def configure_parameters(self, weight_decay: float, lr: float, device: str, custom_optim: Optional[Type[torch.optim.Optimizer]] = None) -> torch.optim.Optimizer:
         param_dict = {name: param for name, param in self.named_parameters()}
         param_dict = {name: param for name, param in param_dict.items() if param.requires_grad}
         decay_params = [p for p in param_dict.values() if p.dim() >= 2]
@@ -67,9 +67,17 @@ class Transformer(nn.Module, ABC, metaclass=TransformerMeta):
         use_fused = fused_available and "cuda" in device
         print(f"Using fused AdamW: {use_fused}")
         if self.config.training.use_fused:
-            optimizer = self.config.training.optimizer(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)  # type: ignore
+            if custom_optim is None:
+                assert self.config.training.optimizer != "custom", "A custom optimizer wasn't provided even though the configuration claimed it so."
+                optimizer = self.config.training.optimizer(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)  # type: ignore
+            else:
+                optimizer = custom_optim(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)  # type: ignore
         else:
-            optimizer = self.config.training.optimizer(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, is_paged=True)  # type: ignore
+            if custom_optim is None:
+                assert self.config.training.optimizer != "custom", "A custom optimizer wasn't provided even though the configuration claimed it so."
+                optimizer = self.config.training.optimizer(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, is_paged=True)  # type: ignore
+            else:
+                optimizer = custom_optim(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, is_paged=True)  # type: ignore
         return optimizer
 
     def estimate_mfu(self, fwdbwd_per_iter, dt):
@@ -96,6 +104,19 @@ class BaseTransformer(Transformer):
         ff: Optional[nn.Module] = None,
         shallow_ff: Optional[nn.Module] = None,
     ):
+        """
+        Sample Transformer class that supports all settings.
+
+        Arguments:
+            - config (Config): The configuration for the model.
+            - ff (Module | None): An optional feed forwawrd network to use in the model.
+            - shallow_ff (Module | None): An optional shallow feed forwawrd network to use in the early layers model.
+
+        Although this models supports all model settings of the library, it contains a lot of conditional statements to
+        archieve this. While it will most likely work for the particular task that you may want to train it for, it's
+        encouraged to write your own subclass of `Transformer` to optimize inference time and support other features not
+        present in the library.
+        """
         super(BaseTransformer, self).__init__(config)
         self.embed_dim = config.embed_dim
 
@@ -119,8 +140,6 @@ class BaseTransformer(Transformer):
         if config.use_looping:
             assert self.config.looping.q.value is not None
             self.q = self.config.looping.q.value
-            # self.register_buffer("q", torch.tensor(self.config.looping.q.value))
-            # self.q = torch.tensor(self.config.looping.q.value)
             self.gate = OuroExitGate(config)
             if self.training:
                 self.register_buffer(
@@ -180,7 +199,7 @@ class BaseTransformer(Transformer):
                 if loop == 0:
                     u = p
                 elif loop == len(x) - 1:
-                    u = 1 - torch.sum(torch.cat(unnormalized, dim=-1), dim=-1, keepdim=True)
+                    u = torch.clamp(1 - torch.sum(torch.cat(unnormalized, dim=-1), dim=-1, keepdim=True), min=0, max=1)
                 else:
                     u = (p * survivals[-1])
                 c = u if loop == 0 else u + cumulative[-1]
