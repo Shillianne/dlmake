@@ -13,7 +13,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_mha_rope(self):
         from dlmake import MultiHeadAttention
@@ -23,7 +24,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_mha_qknorm(self):
         from dlmake import MultiHeadAttention
@@ -33,7 +35,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_mha_flash(self):
         from dlmake import MultiHeadAttention
@@ -43,7 +46,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_mqa(self):
         from dlmake import MultiQueryAttention
@@ -53,7 +57,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_mqa_rope(self):
         from dlmake import MultiQueryAttention
@@ -63,7 +68,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_mqa_qknorm(self):
         from dlmake import MultiQueryAttention
@@ -73,7 +79,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_mqa_flash(self):
         from dlmake import MultiQueryAttention
@@ -83,7 +90,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_gqa(self):
         from dlmake import GroupedQueryAttention
@@ -93,7 +101,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_gqa_rope(self):
         from dlmake import GroupedQueryAttention
@@ -103,7 +112,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_gqa_qknorm(self):
         from dlmake import GroupedQueryAttention
@@ -113,7 +123,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_gqa_flash(self):
         from dlmake import GroupedQueryAttention
@@ -123,7 +134,8 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)
 
     def test_attention_forward_mla(self):
         from dlmake import MultiHeadLatentAttention
@@ -133,4 +145,5 @@ class AttentionTest(unittest.TestCase):
         C = config.ctx_size
         E = config.embed_dim
         x = torch.rand(B, C, E, dtype=config.dtype)
-        attn(x)
+        pos = torch.arange(0, C)
+        attn(x, pos)

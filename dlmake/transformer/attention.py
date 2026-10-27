@@ -9,12 +9,16 @@ import math
 
 class Attention(nn.Module, ABC):
     def __init__(self):
+        """
+        Base class for all attention methods.
+        """
+
         super(Attention, self).__init__()
 
         self._is_training = True
 
     @abstractmethod
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         pass
 
     @abstractmethod
@@ -24,6 +28,17 @@ class Attention(nn.Module, ABC):
 
 class MultiHeadAttention(Attention):
     def __init__(self, config: Config):
+        """
+        Basic Multi-Head Attention with KV cache
+
+        Arguments:
+            - config (Config): The configuration of the current model.
+
+        This class mimics the implementation of the original GPT2 transformer, but adds certain features to optimize it or make it interchangeable
+        with the other attention classes. These additions include a KV cache, QK normalization, RoPE and flash attention, all accessible and 
+        customiazble with `Config`.
+        """
+
         super(MultiHeadAttention, self).__init__()
 
         self.embed_dim = config.embed_dim
@@ -66,7 +81,7 @@ class MultiHeadAttention(Attention):
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, config.nhead, config.max_ctx_size, config.embed_dim // config.nhead),
                                  persistent=False)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Forward method of the MultiHeadAttention class.
 
@@ -92,8 +107,8 @@ class MultiHeadAttention(Attention):
             k = self.k_norm(k)
 
         if self.use_rope:
-            q = compute_rope(q, self.cos, self.sin)
-            k = compute_rope(k, self.cos, self.sin)
+            q = compute_rope(q, self.cos, self.sin, position)
+            k = compute_rope(k, self.cos, self.sin, position)
 
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
@@ -127,6 +142,17 @@ class MultiHeadAttention(Attention):
 
 class MultiQueryAttention(Attention):
     def __init__(self, config: Config) -> None:
+        """
+        Multi Query Attention class
+
+        Arguments:
+            - config (Config): The configuration of the current model.
+
+        This class modifies the base Multi-Head Attention class by joining the query, key and value projected inputs into a single
+        head, reducing computational costs but reducing model quality in return. Besides this change, this class contains all the
+        same modifications as MHA (KV cache, QK norm, RoPE, flash attention).
+        """
+
         super(MultiQueryAttention, self).__init__()
         assert config.embed_dim % config.nhead == 0, "embedding dimension must be divisible by the number of attention heads"
 
@@ -184,7 +210,7 @@ class MultiQueryAttention(Attention):
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, 1, config.max_ctx_size, self.head_dim),
                                  persistent=False)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, T, E = x.shape
         end_pos = start_pos + T
 
@@ -202,8 +228,8 @@ class MultiQueryAttention(Attention):
             k = self.k_norm(k)
 
         if self.use_rope:
-            q = compute_rope(q, self.cos, self.sin)
-            k = compute_rope(k, self.cos, self.sin)
+            q = compute_rope(q, self.cos, self.sin, position)
+            k = compute_rope(k, self.cos, self.sin, position)
 
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
@@ -240,6 +266,16 @@ class MultiQueryAttention(Attention):
 
 class GroupedQueryAttention(Attention):
     def __init__(self, config: Config) -> None:
+        """
+        Implementation of Grouped Query Attetion.
+
+        Arguments:
+            - config (Config): The configuration of the current model.
+
+        This class adapts Multi Query Attention's compromising approach to the performance of the model by setting a number of groups of attention heads,
+        all heads within a group sharing the same query, key and value tensors. This consumes more memory and compute than MQA, but it improves model performance.
+        In practice, it's barely worse than MHA while improving memory usage and inference speed.
+        """
         super(GroupedQueryAttention, self).__init__()
         assert config.embed_dim % config.nhead == 0, "embedding dimension must be divisible by the number of attention heads"
         assert config.attention.n_kv_groups is not None, "A number of kv groups is required for Grouped Query Attention"
@@ -302,7 +338,7 @@ class GroupedQueryAttention(Attention):
             self.register_buffer("kv_cache", torch.zeros(2, config.max_batch_size, self.n_kv_groups, config.max_ctx_size, self.head_dim),
                                  persistent=False)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, T, E = x.shape
         end_pos = start_pos + T
 
@@ -321,8 +357,8 @@ class GroupedQueryAttention(Attention):
             k = self.k_norm(k)
 
         if self.use_rope:
-            q = compute_rope(q, self.cos, self.sin)
-            k = compute_rope(k, self.cos, self.sin)
+            q = compute_rope(q, self.cos, self.sin, position)
+            k = compute_rope(k, self.cos, self.sin, position)
 
         if not self._is_training:
             self.kv_cache[0, :B, :, start_pos:end_pos] = k
@@ -362,6 +398,18 @@ class GroupedQueryAttention(Attention):
 
 class MultiHeadLatentAttention(Attention):
     def __init__(self, config: Config):
+        """
+        Implementation of Multi-Head Latent Attention from the Deepseek team.
+
+        Arguments:
+            - config (Config): The configuration of the current model
+
+        This attention method compreses the key and value tensors into a latent space that also serves as the KV cache space. By allowing the model
+        to learn how to best project into the inputs into this latent space and by exploiting some algebraic properties, MLA obtains better memory usage
+        and inference speed while improving model performance with respect to MHA. However, external studies have shown that these gains only start to show
+        in larger models, so it's recommended to use GQA instead of this attention for smaller models.
+        """
+
         super(MultiHeadLatentAttention, self).__init__()
         assert config.attention.kv_lora_dim is not None and config.attention.q_head_dim is not None and config.attention.v_head_dim is not None
 
@@ -403,7 +451,7 @@ class MultiHeadLatentAttention(Attention):
             self.kv_cache: torch.Tensor
             self.register_buffer("kv_cache", torch.zeros(config.max_batch_size, config.max_ctx_size, config.attention.kv_lora_dim), persistent=False)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, T, _ = x.shape
         end_pos = start_pos + T
 

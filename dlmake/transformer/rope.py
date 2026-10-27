@@ -11,14 +11,14 @@ def precompute_rope_params(head_dim: int, theta: int = 10_000, max_cxt: int = 20
     sin = torch.sin(angles)
     return cos, sin
 
-def compute_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
+def compute_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, position: torch.Tensor):
     *_, ctx_size, head_dim = x.shape
     assert head_dim % 2 == 0, "Head dimension must be even"
 
     x1 = x[..., : head_dim // 2]  # First half
     x2 = x[..., head_dim // 2 :]  # Second half
-    cos = cos[:ctx_size, :].unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, seq_len, head_dim)
-    sin = sin[:ctx_size, :].unsqueeze(0).unsqueeze(0)
+    cos = cos[position, :].unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, seq_len, head_dim)
+    sin = sin[position, :].unsqueeze(0).unsqueeze(0)
     rotated = torch.cat((-x2, x1), dim=-1)
     x_rotated = (x * cos) + (rotated * sin)
     return x_rotated.to(dtype=x.dtype)

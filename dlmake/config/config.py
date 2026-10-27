@@ -1,6 +1,7 @@
 from .feedforward import FeedForwardSettings
 from .attention import AttentionSettings
 from .training import TrainingSettings
+from .looping import LoopingSettings
 from dataclasses import dataclass
 from yaml import load, Loader
 import torch.nn as nn
@@ -27,6 +28,7 @@ params = {
     "training": TrainingSettings,
     "feed_forward": FeedForwardSettings,
     "attention": AttentionSettings,
+    "looping": LoopingSettings,
 }
 
 
@@ -50,6 +52,7 @@ class Config:
     training: TrainingSettings
     feed_forward: FeedForwardSettings
     attention: AttentionSettings
+    looping: LoopingSettings
 
     @classmethod
     def from_json(cls, filename: str):
@@ -135,6 +138,12 @@ class Config:
 
         cls.check(values)
         return cls(**values)
+
+    # @staticmethod
+    # def __check(obj: "Config"):
+    #     assert obj.max_ctx_size >= obj.ctx_size, "Maximum ctx size has to be at least equal to the ctx size"
+    #     assert obj.max_batch_size >= obj.batch_size, "Maximum batch size has to be at least equal to the batch size"
+    #     assert obj.prenorm or obj.postnorm, "At least one of prenorm or postnorm have to be true"
 
     @staticmethod
     def check(values: dict):

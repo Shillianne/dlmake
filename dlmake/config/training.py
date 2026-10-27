@@ -1,14 +1,24 @@
+from torch.optim.lr_scheduler import LRScheduler, OneCycleLR
+from typing import Optional, Type, Literal
+from .general_params import GeneralParams
+from torchmetrics import Accuracy, Metric
 from torch.optim import Optimizer, AdamW
 from .logging import LoggingSettings
+from .server import ServerSettings
 from dataclasses import dataclass
-from typing import Optional
+import torch.nn as nn
 
 
 params = {
     "tokens_per_epoch": (int, 1024),
+    "loaded_tokens": (int, 4096),
     "max_lr": (float, 1e-3),
     "min_lr": (float, 1e-6),
-    "optimizer": (Optimizer, AdamW),
+    "optimizer": ((Type[Optimizer], str), AdamW),
+    "scheduler": ((Type[LRScheduler], str), OneCycleLR),
+    "scheduler_options": GeneralParams,
+    "loss": ((nn.Module, str), nn.CrossEntropyLoss),
+    "accuracy": ((nn.Module, Metric, str), Accuracy),
     "use_fused": (bool, True),
     "compile": (bool, False),
     "checkpoint_rate": (int, 10),
@@ -24,6 +34,7 @@ params = {
     "warmup_steps": (int, 150),
     "shuffle_data": (bool, False),
     "new": (bool, True),
+    "server": ServerSettings,
     "logging": LoggingSettings,
 }
 
@@ -31,9 +42,14 @@ params = {
 @dataclass
 class TrainingSettings:
     tokens_per_epoch: int
+    loaded_tokens: int
     max_lr: float
     min_lr: float
-    optimizer: Optimizer
+    optimizer: Type[Optimizer] | Literal["custom"]
+    scheduler: Type[LRScheduler] | Literal["custom"]
+    scheduler_options: GeneralParams
+    loss: nn.Module | Literal["custom"]
+    accuracy: nn.Module | Metric | Literal["custom"]
     use_fused: bool
     compile: bool
     checkpoint_rate: int
@@ -49,6 +65,7 @@ class TrainingSettings:
     warmup_steps: int
     shuffle_data: bool
     new: bool
+    server: ServerSettings
     logging: LoggingSettings
 
     @classmethod
@@ -61,17 +78,60 @@ class TrainingSettings:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "optimizer":
-                    try:
-                        exec(f"from torch.optim import {kwargs[param]}")
-                    except Exception:
+                    if value == "custom":
+                        values[param] = value
+                    else:
                         try:
-                            exec(f"from bitsandbytes.optim import {kwargs[param]}")
+                            exec(f"from torch.optim import {kwargs[param]}")
+                        except Exception:
+                            try:
+                                exec(f"from bitsandbytes.optim import {kwargs[param]}")
+                            except Exception as e:
+                                raise e
+                            else:
+                                exec(f"values['{param}'] = {kwargs[param]}")
+                        else:
+                            exec(f"values['{param}'] = {kwargs[param]}")
+                elif param == "scheduler":
+                    if value == "custom":
+                        values[param] = value
+                    else:
+                        try:
+                            exec(f"from torch.optim.lr_scheduler import {kwargs[param]}")
                         except Exception as e:
                             raise e
                         else:
                             exec(f"values['{param}'] = {kwargs[param]}")
+                elif param == "loss":
+                    if param == "custom":
+                        values[param] = value
                     else:
-                        exec(f"values['{param}'] = {kwargs[param]}")
+                        try:
+                            exec(f"from torch.nn import {value}")
+                        except Exception:
+                            try:
+                                exec(f"from dlmake import {value}")
+                            except Exception as e:
+                                raise e
+                            else:
+                                exec(f"values['{param}'] = {value}")
+                        else:
+                            exec(f"values['{param}'] = {value}")
+                elif param == "accuracy":
+                    if param == "custom":
+                        values[param] = value
+                    else:
+                        try:
+                            exec(f"from torchmetrics import {value}")
+                        except Exception as e:
+                            try:
+                                exec(f"from dlmake import {value}")
+                            except Exception as e:
+                                raise e
+                            else:
+                                exec(f"values['{param}'] = {value}")
+                        else:
+                            exec(f"values['{param}'] = {value}")
                 else:
                     kind = params[param][0]
                     # assert isinstance(kwargs[param], kind), f"Attribute '{param}' isn't of the expected type {kind}"

@@ -13,6 +13,20 @@ class DecoderBlock(nn.Module):
         ff: Optional[nn.Module] = None,
         shallow_ff: Optional[nn.Module] = None,
     ):
+        """
+        Class representing a single Transformer block.
+
+        Arguments:
+            - config (Config): The configuration of the current model.
+            - layer (int): The layer or index of this block.
+            - ff (Module | None): An optional feed forwawrd network to use in the model.
+            - shallow_ff (Module | None): An optional shallow feed forwawrd network to use in the early layers model.
+
+        Through the use of the `layer` argument, the Transformer block is aware of it's position within the model, and this
+        allows the customization of attention methods or feed forward architectures depending on how deep they are within the
+        model.
+        """
+
         super(DecoderBlock, self).__init__()
         self.use_shallow = config.feed_forward.shallow_ff is not None
         assert config.attention.attention_method is not None, "Something must have gone terribly wrong for this error to appear"
@@ -21,11 +35,11 @@ class DecoderBlock(nn.Module):
         self.prenorm = config.prenorm
         self.postnorm = config.postnorm
         if self.prenorm:
-            self.prenorm1 = config.norm(config.embed_dim, bias=config.bias)
-            self.prenorm2 = config.norm(config.embed_dim, bias=config.bias)
+            self.prenorm1 = config.norm(config.embed_dim, dtype=config.dtype)
+            self.prenorm2 = config.norm(config.embed_dim, dtype=config.dtype)
         if self.postnorm:
-            self.postnorm1 = config.norm(config.embed_dim, bias=config.bias)
-            self.postnorm2 = config.norm(config.embed_dim, bias=config.bias)
+            self.postnorm1 = config.norm(config.embed_dim, dtype=config.dtype)
+            self.postnorm2 = config.norm(config.embed_dim, dtype=config.dtype)
 
         self.attn: Attention = config.attention.attention_method(config=config)
 
@@ -43,13 +57,13 @@ class DecoderBlock(nn.Module):
                 assert config.feed_forward.shallow_ff is not None, "Something must have gone terribly wrong for this error to appear"
                 self.mlp = config.feed_forward.shallow_ff(config=config, shallow=True)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, position: torch.Tensor, start_pos: int = 0, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         if self.prenorm:
             x = self.prenorm1(x)
         if self.postnorm:
-            x = x + self.postnorm1(self.attn(x, start_pos, mask))
+            x = x + self.postnorm1(self.attn(x, position, start_pos, mask))
         else:
-            x = x + self.attn(x, start_pos, mask)
+            x = x + self.attn(x, position, start_pos, mask)
         if self.prenorm:
             x = self.prenorm2(x)
         if self.postnorm:
