@@ -41,4 +41,4 @@ The process of creating a model is exactly the same as it would be with PyTorch,
 
 In most cases, you will want to make use of the `Config` class, as that should make it easier to declare differnt models based on their parameters, both while testing manually and while launching automated training jobs. Please refer to the [configuration](./dlmake/config/CONFIG.md) documentation for more details on all the parameters.
 
-For any other doubts about how to use the library, look at the [examples](./dlmake/examples/README.md) page.
+For any other doubts about how to use the library, look at the [examples](./examples/README.md) page.
