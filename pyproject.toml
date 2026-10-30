@@ -16,10 +16,15 @@ classifiers = [
 	"Programming Language :: Python",
 	"Intended Audience :: Developers",
 	"Topic :: Scientific/Engineering :: Artificial Intelligence",
+	"Development Status :: 4 - Beta",
+	"Environment :: GPU :: NVIDIA CUDA",
+	"Framework :: FastAPI",
+	"License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 ]
 authors = [
 	{name = "Shillianne", email = "shillianne@proton.me"},
 ]
+license = [{file = "LICENSE"}]
 
 [project.urls]
 Repository = "https://github.com/Shillianne/dlmake.git"
