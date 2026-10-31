@@ -13,12 +13,24 @@ A library to pretrain LLMs (and maybe other kinds of deep learning networks)
 
 ## Installation
 
-Currently, only downloading from source and cloning the repo are supported. Then install the requirements:
+You can install DLmake through the provided PyPI wheels:
+
+```bash
+python -m pip install dlmake
+```
+
+To make use of the server functionality during training, you will need to install the library's optional server dependencies:
+
+```bash
+python -m pip install dlmake[server]
+```
+
+### From Source
+
+You can also install DLmake by directly cloning this repo, but it's important to note that only the main branch is expected to work without issues, as other branches may be in development or testing:
 
 ```bash
 git clone https://github.com/Shillianne/dlmake.git
-cd dlmake
-python -m pip install -r requirements.txt # or other requirement management programs you may use
 ```
 
 You may then want to use the library in other projects. For that, you can use pip's supported local project installs like so:
