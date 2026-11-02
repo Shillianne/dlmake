@@ -48,7 +48,7 @@ def progress_factory(config: ProgressConfig):
         if model_progress and "cur_model" in kwargs.keys() and "total_models" in kwargs.keys():
             blocks.append(f"[{kwargs['cur_model']}/{kwargs['total_models']}]")
         if train_progress and "epoch" in kwargs.keys() and "total_epochs" in kwargs.keys():
-            blocks.append(f"[{kwargs['epoch']}/{kwargs['total_epochs']}]")
+            blocks.append(f"[{kwargs['epoch']:>{len(str(kwargs['total_models']))}}/{kwargs['total_epochs']}]")
         blocks.append(f"Average Loss: {loss:.3f}")
         if "looping" in kwargs.keys() and kwargs["looping"]:
             s = "Average Loop Accuracies: ["

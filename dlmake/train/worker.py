@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch
 import time
 import os
+import re
 
 
 class Worker:
@@ -149,12 +150,12 @@ class Worker:
             assert self.scheduler_class is not None, "A custom scheduler wasn't provided even though the configuration claimed it so."
             scheduler = self.scheduler_class(optimizer)
         else:
-            scheduler = self.config.training.scheduler(optimizer, **self.config.training.scheduler_options.__dict__)  # TODO: Add option for scheduler parameters
+            scheduler = self.config.training.scheduler(optimizer, **self.config.training.scheduler_options.__dict__)
         if self.config.training.loss == "custom":
             assert self.loss_class is not None, "A custom loss wasn't provided even though the configuration claimed it so."
             loss_fn = self.loss_class()
         else:
-            loss_fn = self.config.training.loss()
+            loss_fn = self.config.training.loss(**self.config.training.loss_options.__dict__)
         if self.config.training.accuracy == "custom":
             assert self.accuracy_class is not None, "A custom accuracy wasn't provided even though the configuration claimed it so."
             if self.accuracy_class.__name__ == "Accuracy":
@@ -376,10 +377,16 @@ class Worker:
                     val_acc
                 )
 
-        except torch.cuda.OutOfMemoryError:
-            self.logger.error(
-                f"Ran out of CUDA memory on model [{self.model_index + 1:>{len(str(self.model_count))}}/{self.model_count}]."
-            )
+        except torch.cuda.OutOfMemoryError as e:
+            result = re.search(r"([\.\d]+)\sGiB", str(e))
+            if result is not None and len(result.groups()) != 0:
+                self.logger.error(
+                    f"Ran out of CUDA memory on model [{self.model_index + 1:>{len(str(self.model_count))}}/{self.model_count}]. Tried to allocate {float(result.groups()[0])} GiB."
+                )
+            else:
+                self.logger.error(
+                    f"Ran out of CUDA memory on model [{self.model_index + 1:>{len(str(self.model_count))}}/{self.model_count}]."
+                )
         else:
             self.logger.log(
                 f"Finished training model [{self.model_index + 1:>{len(str(self.model_count))}}/{self.model_count}]."
