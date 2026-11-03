@@ -18,6 +18,7 @@ params = {
     "scheduler": ((Type[LRScheduler], str), OneCycleLR),
     "scheduler_options": GeneralParams,
     "loss": ((nn.Module, str), nn.CrossEntropyLoss),
+    "loss_options": GeneralParams,
     "accuracy": ((nn.Module, Metric, str), Accuracy),
     "use_fused": (bool, True),
     "compile": (bool, False),
@@ -49,6 +50,7 @@ class TrainingSettings:
     scheduler: Type[LRScheduler] | Literal["custom"]
     scheduler_options: GeneralParams
     loss: nn.Module | Literal["custom"]
+    loss_options: GeneralParams
     accuracy: nn.Module | Metric | Literal["custom"]
     use_fused: bool
     compile: bool
