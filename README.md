@@ -51,6 +51,6 @@ python -m pip install /path/to/dlmake[server]
 DLmake is a library for pretraining LLMs (and maybe other deep learning networks), so it doesn't come with any predefined models. You will have to instantiate and train any models you create.
 The process of creating a model is exactly the same as it would be with PyTorch, as most classes in this library are subclasses of `nn.Module`. In most scenarios, you shouldn't need to do anything else other than use the declared classes of the library and call a trainer, but some architectures may require further work from your part or a specifc trainer implementation.
 
-In most cases, you will want to make use of the `Config` class, as that should make it easier to declare differnt models based on their parameters, both while testing manually and while launching automated training jobs. Please refer to the [configuration](./dlmake/config/CONFIG.md) documentation for more details on all the parameters.
+In most cases, you will want to make use of the `Config` class, as that should make it easier to declare differnt models based on their parameters, both while testing manually and while launching automated training jobs. Please refer to the [configuration](https://github.com/Shillianne/dlmake/blob/main/dlmake/config/CONFIG.md) documentation for more details on all the parameters.
 
-For any other doubts about how to use the library, look at the [examples](./examples/README.md) page.
+For any other doubts about how to use the library, look at the [examples](https://github.com/Shillianne/dlmake/blob/main/README.md) page.

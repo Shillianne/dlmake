@@ -23,6 +23,7 @@
 | training.min_lr | float | 1e-6 | The minimum learning rate during training |
 | training.optimizer | (torch.optim.Optimizer, Literal(custom)) | torch.optim.AdamW | Optimizer used during training. Can be set to custom for using a custom defined one. |
 | training.loss | (nn.Module, Literal(custom)) | nn.CrossEntropyLoss | Loss function used during training. Can be set to custom for using a custom defined one. |
+| training.loss_options | GeneralParams | - | A setting that allows any variable names and values for the customization of the parameters of the loss function |
 | training.accuracy | (nn.Module, Metric, Literal(custom)) | torchmetrics.Accuracy | The accuracy function used during training. Can be set to custom for using a custom defined one. |
 | training.scheduler | (torch.optim.lr_scheduler.LRScheduler, Literal(custom)) | torch.optim.lr_scheduler.OneCycleLR | Scheduler used during training. Can be set to custom for using a custom defined one. |
 | training.scheduler_options | GeneralParams | - | A setting that allows any variable names and values for the customization of the parameters of the scheduler |
