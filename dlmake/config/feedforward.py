@@ -100,7 +100,6 @@ class FeedForwardSettings:
         return cls(**values)
 
     def state_dict(self):
-
         d = self.__dict__
         state = {}
         for k, v in d.items():
