@@ -1,7 +1,7 @@
+from dlmake import Config, OuroExitGate, ContextCompression
 from torch.utils.checkpoint import checkpoint
 from abc import ABC, abstractmethod, ABCMeta
 from typing import Literal, Optional, Type
-from dlmake import Config, OuroExitGate
 from .blocks import DecoderBlock
 import torch.nn as nn
 import inspect
@@ -126,6 +126,8 @@ class BaseTransformer(Transformer):
             config.embed_dim,
             dtype=config.dtype
         )
+        if config.cc.used:
+            self.cc = ContextCompression(config)
         self.blocks = nn.ModuleList([
             DecoderBlock(config, layer=i, ff=ff, shallow_ff=shallow_ff) for i in range(config.nlayers)
         ])
@@ -165,6 +167,8 @@ class BaseTransformer(Transformer):
                 mask = None
 
         x = self.embedding(x)
+        if self.config.cc.used:
+            x = self.cc(x)
 
         if self.config.use_looping:
             if self.config.looping.looping_behaviour == "full":

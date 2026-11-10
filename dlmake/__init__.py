@@ -1,5 +1,5 @@
 from .config import Config
-from .edge import OuroExitGate, OuroLoss, LoopingAccuracy
+from .edge import OuroExitGate, OuroLoss, LoopingAccuracy, ContextCompression
 from .benchmark import Benchmark
 from .base import *
 from .dataloader import BaseDataLoader, OfflineDataLoader, OnlineDataLoader, SplitGenerator
@@ -13,6 +13,7 @@ __all__ = [
     "OuroExitGate",
     "OuroLoss",
     "LoopingAccuracy",
+    "ContextCompression",
     "Benchmark",
     "GPTFeedForward",
     "LlamaFeedForward",

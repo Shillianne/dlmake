@@ -1,4 +1,5 @@
 from .feedforward import FeedForwardSettings
+from .cc import ContextCompressionSettings
 from .attention import AttentionSettings
 from .training import TrainingSettings
 from .looping import LoopingSettings
@@ -30,6 +31,7 @@ params = {
     "feed_forward": FeedForwardSettings,
     "attention": AttentionSettings,
     "looping": LoopingSettings,
+    "cc": ContextCompressionSettings,
 }
 
 
@@ -54,6 +56,7 @@ class Config:
     feed_forward: FeedForwardSettings
     attention: AttentionSettings
     looping: LoopingSettings
+    cc: ContextCompressionSettings
 
     @classmethod
     def from_json(cls, filename: str):
