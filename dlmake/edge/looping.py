@@ -31,7 +31,7 @@ class OuroLoss(nn.Module):
             raise ValueError(f"'{self.dist}' is not one of the available values for the prior distribution.")
         loss = torch.tensor(0., dtype=pred.dtype, device=pred.device)
         for y, u in zip(pred, probs):
-            loss += self.ce((y * u).view(-1, y.shape[-1]), target.view(-1)) - self.beta * self.kl(torch.log(u + 1e-7), dist)
+            loss += self.ce((y * u).view(-1, y.shape[-1]), target.view(-1)) - self.beta * torch.abs(self.kl(torch.log(u + 1e-7), dist))
         return loss
 
 

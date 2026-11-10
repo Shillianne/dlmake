@@ -124,26 +124,62 @@ class Worker:
         test_rate = self.config.training.test_rate if self.config.training.test_rate is not None else 100
         val_rate = self.config.training.val_rate if self.config.training.val_rate is not None else 0
         if self.config.training.use_val:
-            train_dataloader, test_dataloader, val_dataloader = SplitGenerator(
-                data_path=self.datapath, use_val=True, train_size=train_size, test_size=test_size
-            ).generate_splits(
-                dataloader=self.dataloader,
-                config=self.config,
-                rank=self.ddp_rank,
-                world_size=self.ddp_world_size,
-            )
             val_print_f = progress_factory(self.config.training.logging.val_progress_config)
+            if self.dataloader.online:
+                train_dataloader, test_dataloader, val_dataloader = SplitGenerator(
+                    use_val=True,
+                    dataloader=self.dataloader,
+                    online=True,
+                    train_size=train_size,
+                    test_size=test_size
+                ).generate_splits(
+                    config=self.config,
+                    rank=self.ddp_rank,
+                    world_size=self.ddp_world_size,
+                    total_tokens=self.dataloader.total_tokens
+                )
+            else:
+                train_dataloader, test_dataloader, val_dataloader = SplitGenerator(
+                    use_val=True,
+                    dataloader=self.dataloader,
+                    online=False,
+                    train_size=train_size,
+                    test_size=test_size
+                ).generate_splits(
+                    config=self.config,
+                    rank=self.ddp_rank,
+                    world_size=self.ddp_world_size,
+                    data_path=self.datapath,
+                )
         else:
             val_dataloader = None
             val_print_f = None
-            train_dataloader, test_dataloader = SplitGenerator(
-                data_path=self.datapath, use_val=False, train_size=train_size, test_size=test_size
-            ).generate_splits(
-                dataloader=self.dataloader,
-                config=self.config,
-                rank=self.ddp_rank,
-                world_size=self.ddp_world_size,
-            )
+            if self.dataloader.online:
+                train_dataloader, test_dataloader = SplitGenerator(
+                    use_val=False,
+                    dataloader=self.dataloader,
+                    online=True,
+                    train_size=train_size,
+                    test_size=test_size
+                ).generate_splits(
+                    config=self.config,
+                    rank=self.ddp_rank,
+                    world_size=self.ddp_world_size,
+                    total_tokens=self.dataloader.total_tokens
+                )
+            else:
+                train_dataloader, test_dataloader = SplitGenerator(
+                    use_val=False,
+                    dataloader=self.dataloader,
+                    online=False,
+                    train_size=train_size,
+                    test_size=test_size
+                ).generate_splits(
+                    config=self.config,
+                    rank=self.ddp_rank,
+                    world_size=self.ddp_world_size,
+                    data_path=self.datapath,
+                )
         
         optimizer = model.configure_parameters(weight_decay=0.1, lr=6e-4, device=self.device, custom_optim=self.optimizer_class)
         if self.config.training.scheduler == "custom":

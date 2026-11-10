@@ -2,7 +2,7 @@ from .config import Config
 from .edge import OuroExitGate, OuroLoss, LoopingAccuracy
 from .benchmark import Benchmark
 from .base import *
-from .dataloader import BaseDataLoader, SplitGenerator
+from .dataloader import BaseDataLoader, OfflineDataLoader, OnlineDataLoader, SplitGenerator
 from .transformer import *
 from .utils import *
 from .train import Trainer
@@ -18,6 +18,8 @@ __all__ = [
     "LlamaFeedForward",
     "MoE",
     "BaseDataLoader",
+    "OfflineDataLoader",
+    "OnlineDataLoader",
     "SplitGenerator",
     "MultiHeadAttention",
     "MultiQueryAttention",

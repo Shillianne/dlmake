@@ -1,11 +1,11 @@
-from dlmake import BaseDataLoader, Trainer, BaseTransformer, Config
+from dlmake import OnlineDataLoader, Trainer, BaseTransformer, Config
 from typing import Literal
 import unittest
 import torch
 import os
 
 
-class MockDataloader(BaseDataLoader):
+class MockDataloader(OnlineDataLoader):
     def __init__(
         self,
         config: Config,

@@ -1,3 +1,4 @@
+from torch.utils.checkpoint import checkpoint
 from abc import ABC, abstractmethod, ABCMeta
 from typing import Literal, Optional, Type
 from dlmake import Config, OuroExitGate
@@ -189,7 +190,10 @@ class BaseTransformer(Transformer):
                 if mask is not None:
                     mask = mask[:T, :T]
                 for block in self.blocks[min_idx:max_idx]:
-                    x = block(x, indices, start_pos=start_pos, mask=mask)
+                    if self.config.training.gradient_checkpoint:
+                        x = checkpoint(block, x, indices, start_pos, mask)
+                    else:
+                        x = block(x, indices, start_pos=start_pos, mask=mask)
                 if self.training:
                     looping_output.append(x)
 
@@ -225,7 +229,10 @@ class BaseTransformer(Transformer):
                 self.unnormalized = torch.stack(unnormalized, dim=0)  # (num_loops, batch, ctx_size, 1)
         else:
             for block in self.blocks:
-                x = block(x, indices, start_pos=start_pos, mask=mask)
+                if self.config.training.gradient_checkpoint:
+                    x = checkpoint(block, x, indices, start_pos, mask)
+                else:
+                    x = block(x, indices, start_pos=start_pos, mask=mask)
 
         x = self.norm(x)
         logits = self.classification_layer(x)

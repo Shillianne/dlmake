@@ -1,4 +1,4 @@
-from dlmake import Transformer, Config, DecoderBlock, BaseDataLoader, Trainer
+from dlmake import Transformer, Config, DecoderBlock, OnlineDataLoader, Trainer
 from typing import Literal
 import torch.nn as nn
 import torch
@@ -33,7 +33,7 @@ class GPT2(Transformer):
 
 
 
-class ExampleDataloader(BaseDataLoader):
+class ExampleDataloader(OnlineDataLoader):
     def __init__(
         self,
         config: Config,

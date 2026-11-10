@@ -22,6 +22,7 @@ params = {
     "accuracy": ((nn.Module, Metric, str), Accuracy),
     "use_fused": (bool, True),
     "compile": (bool, False),
+    "gradient_checkpoint": (bool, False),
     "checkpoint_rate": (int, 10),
     "save_history": (bool, False),
     "use_val": (bool, False),
@@ -54,6 +55,7 @@ class TrainingSettings:
     accuracy: nn.Module | Metric | Literal["custom"]
     use_fused: bool
     compile: bool
+    gradient_checkpoint: bool
     checkpoint_rate: int
     save_history: bool
     use_val: bool
