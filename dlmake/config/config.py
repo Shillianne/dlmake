@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from yaml import load, Loader
 import torch.nn as nn
 import torch
+import copy
 import json
 
 
@@ -139,11 +140,23 @@ class Config:
         cls.check(values)
         return cls(**values)
 
-    # @staticmethod
-    # def __check(obj: "Config"):
-    #     assert obj.max_ctx_size >= obj.ctx_size, "Maximum ctx size has to be at least equal to the ctx size"
-    #     assert obj.max_batch_size >= obj.batch_size, "Maximum batch size has to be at least equal to the batch size"
-    #     assert obj.prenorm or obj.postnorm, "At least one of prenorm or postnorm have to be true"
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = params[k].load_state_dict(v)
+        return cls(**d)
 
     @staticmethod
     def check(values: dict):

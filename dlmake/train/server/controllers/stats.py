@@ -4,8 +4,10 @@ from ..models import (
     IntegerResponseModel,
 )
 from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import StreamingResponse
 from asyncio import Queue
 from ..state import *
+import pickle
 import torch
 import io
 
@@ -159,12 +161,25 @@ async def get_vram():
 
 @router.get(
     "/loop",
-    response_model=FloatResponseModel,
 )
 async def get_loop_exit_probs():
     present = True
     for q in loop_exit_probs:
         present = present and not q.empty()
     if present:
-        return [await q.get() for q in loop_exit_probs]
+        response = []
+        for q in loop_exit_probs:
+            buffer = io.BytesIO()
+            t = await q.get()
+            torch.save(t, buffer)
+            buffer.seek(0)
+            response.append(buffer)
+        content = pickle.dumps(response)
+        return StreamingResponse(
+            content=io.BytesIO(content),
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": 'attachment; filename="data.txt"'
+            }
+        )
     return None

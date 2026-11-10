@@ -1,7 +1,21 @@
 from dataclasses import dataclass
-from typing import Optional
 from .moe import MoESettings
+from typing import Optional
 import torch.nn as nn
+import copy
+
+
+state_params = {
+    "linear_scale": (int, 4),
+    "nlinear": (nn.Module, nn.ReLU),
+    "dropout": (float, 0.0),
+    "ff": ((nn.Module, str),),
+    "shallow_ff": ((None.__class__, nn.Module, str), None),
+    "shallow_threshold": (int, 100),
+    "bias": (bool, True),
+    "moe": MoESettings,
+    "shallow_moe": MoESettings,
+}
 
 
 @dataclass
@@ -84,3 +98,22 @@ class FeedForwardSettings:
                 values[param] = params[param].from_dict()
 
         return cls(**values)
+
+    def state_dict(self):
+
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(state_params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = state_params[k].load_state_dict(v)
+        return cls(**d)

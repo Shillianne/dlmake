@@ -19,3 +19,17 @@ class GeneralParams:
         for k, v in kwargs.items():
             setattr(obj, k, v)
         return obj
+
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            state[k] = v
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        obj = cls()
+        for k, v in state.items():
+            setattr(obj, k, v)
+        return obj

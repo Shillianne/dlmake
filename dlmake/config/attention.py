@@ -1,8 +1,23 @@
 from dataclasses import dataclass
 from typing import Optional
 import torch.nn as nn
+import copy
 
 
+state_params = {
+    "attention_method": (nn.Module,),
+    "use_rope": (bool, False),
+    "use_qknorm": (bool, True),
+    "qk_norm_type": (nn.Module, nn.RMSNorm),
+    "n_kv_groups": ((None.__class__, int), None),
+    "q_head_dim": ((None.__class__, int), None),
+    "v_head_dim": ((None.__class__, int), None),
+    "kv_lora_dim": ((None.__class__, int), None),
+    "flash": (bool, False),
+    # "doc_aware": (bool, False),
+    "dropout": (float, 0.0),
+    "bias": (bool, True),
+}
 
 
 @dataclass
@@ -77,3 +92,21 @@ class AttentionSettings:
                 values[param] = params[param].from_dict()
 
         return cls(**values)
+
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(state_params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = state_params[k].load_state_dict(v)
+        return cls(**d)

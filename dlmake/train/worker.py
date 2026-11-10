@@ -498,7 +498,7 @@ class Worker:
                 "test": test_dataloader.__dict__,
             }
         meta["OPTIM"] = optimizer.state_dict()
-        meta["CONFIG"] = {k: v for k, v in self.config.__dict__.items() if not k.startswith('_')}
+        meta["CONFIG"] = self.config.state_dict()
         meta["L_HISTORY"] = self.loss_history
         meta["A_HISTORY"] = self.acc_history
         meta["N_HISTORY"] = self.norm_history

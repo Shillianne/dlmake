@@ -2,6 +2,7 @@ from typing import Literal, get_args
 from dataclasses import dataclass
 # from .kv import KVSettings
 from .q import QSettings
+import copy
 
 
 params = {
@@ -49,3 +50,21 @@ class LoopingSettings:
                 values[param] = params[param].from_dict()
 
         return cls(**values)
+
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = params[k].load_state_dict(v)
+        return cls(**d)

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Literal
+import copy
 
 
 params = {
@@ -28,3 +29,17 @@ class KVSettings:
             values[param] = default
 
         return cls(**values)
+
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        return cls(**state)
