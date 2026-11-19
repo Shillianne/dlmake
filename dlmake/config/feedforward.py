@@ -1,3 +1,4 @@
+from importlib import import_module
 from dataclasses import dataclass
 from .moe import MoESettings
 from typing import Optional
@@ -51,33 +52,29 @@ class FeedForwardSettings:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in FeedForwardSettings.")
         values = {}
+        nn_module = import_module("torch.nn")
+        base_module = import_module("dlmake.base")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "nlinear":
                     try:
-                        exec(f"nn.{value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         try:
-                            exec(f"from ..base import {value}")
+                            values[param] = getattr(base_module, value)
                         except Exception as e:
                             raise e
-                        else:
-                            exec(f"values['{param}'] = {value}")
-                    else:
-                        exec(f"values['{param}'] = nn.{value}")
                 elif param == "ff":
                     if value in (names := [mlp.__name__ for mlp in mlps]):
-                        exec(f"from ..base.ff import {value}")
-                        exec(f"values['{param}'] = {value}")
+                        values[param] = getattr(base_module, value)
                     elif value == "custom":
                         values[param] = "custom"
                     else:
                         raise TypeError(f"The requested Feed Forward network ({value}) is not one of the available types ({names}).")
                 elif param == "shallow_ff":
                     if value in (names := [mlp.__name__ for mlp in mlps]):
-                        exec(f"from ..base.ff import {value}")
-                        exec(f"values['{param}'] = {value}")
+                        values[param] = getattr(base_module, value)
                     elif value == "custom":
                         values[param] = "custom"
                     else:

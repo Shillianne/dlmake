@@ -1,4 +1,5 @@
 from typing import Literal, get_args
+from importlib import import_module
 from dataclasses import dataclass
 from torch import nn
 import copy
@@ -40,16 +41,15 @@ class MoESettings:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in MoESettings.")
         values = {}
+        nn_module = import_module("torch.nn")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "nlinear":
                     try:
-                        exec(f"nn.{value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = nn.{value}")
                 elif param == "score_function":
                     if value not in get_args(params[param][0]):
                         raise ValueError(f"Attribute 'score_function' does not support a value of '{value}'.")

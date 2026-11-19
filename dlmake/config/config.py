@@ -3,6 +3,7 @@ from .cc import ContextCompressionSettings
 from .attention import AttentionSettings
 from .training import TrainingSettings
 from .looping import LoopingSettings
+from importlib import import_module
 from dataclasses import dataclass
 from yaml import load, Loader
 import torch.nn as nn
@@ -66,23 +67,21 @@ class Config:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in Config.")
         values = {}
+        torch_module = import_module("torch")
+        nn_module = import_module("torch.nn")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "dtype":
                     try:
-                        exec(f"from torch import {value}")
+                        values[param] = getattr(torch_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 elif param == "norm":
                     try:
-                        exec(f"from torch.nn import {value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 else:
                     kind = params[param][0]
                     # assert isinstance(kwargs[param], kind), f"Attribute '{param}' isn't of the expected type {kind}"
@@ -108,23 +107,21 @@ class Config:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in LoggingSettings.")
         values = {}
+        torch_module = import_module("torch")
+        nn_module = import_module("torch.nn")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "dtype":
                     try:
-                        exec(f"from torch import {value}")
+                        values[param] = getattr(torch_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 elif param == "norm":
                     try:
-                        exec(f"from torch.nn import {value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 else:
                     kind = params[param][0]
                     # assert isinstance(kwargs[param], kind), f"Attribute '{param}' isn't of the expected type {kind}"

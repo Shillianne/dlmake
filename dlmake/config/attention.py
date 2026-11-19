@@ -1,3 +1,4 @@
+from importlib import import_module
 from dataclasses import dataclass
 from typing import Optional
 import torch.nn as nn
@@ -58,24 +59,23 @@ class AttentionSettings:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in AttentionSettings.")
         values = {}
+        attention_module = import_module("dlmake.transformer.attention")
+        nn_module = import_module("torch.nn")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "attention_method":
                     if value in (names := [att.__name__ for att in attention_types]):
-                        exec(f"from ..transformer.attention import {value}")
-                        exec(f"values['{param}'] = {value}")
+                        values[param] = getattr(attention_module, value)
                     elif value is None:
                         values[param] = MultiHeadAttention
                     else:
                         raise TypeError(f"The requested attention method ({value}) is not one of the available types ({names}).")
                 elif param == "qk_norm_type":
                     try:
-                        exec(f"from torch.nn import {value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 else:
                     kind = params[param][0]
                     # assert isinstance(kwargs[param], kind), f"Attribute '{param}' isn't of the expected type {kind}"
