@@ -2,7 +2,6 @@ from dlmake import Transformer, Config
 from abc import ABC, abstractmethod
 import torch.nn as nn
 import tiktoken
-import torch
 
 class Benchmark(ABC):
     """
@@ -31,6 +30,5 @@ class Benchmark(ABC):
     def evaluate(self, model: Transformer, loss_fn: nn.Module) -> tuple[float, float]:
         ...
 
-    @torch.no_grad()
     def __call__(self, model: Transformer, loss_fn: nn.Module):
         return self.evaluate(model, loss_fn)

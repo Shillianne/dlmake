@@ -138,7 +138,34 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: int or None
 
-### GET `/metrics/time`: Returns the last value for the current iteration's duration
+### GET `/metrics/train_time`: Returns the last value for the current iteration's time spent training the model
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_time`: Returns the last value for the current iteration's time spent testing the model
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_time`: Returns the last value for the current iteration's time spent validating the model
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/benchmark_time`: Returns the last value for the current iteration's time spent benchmarking the model
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -347,7 +374,7 @@ This endpoint returns the loss with increasing sequence lengths, up until the de
 The response is formated as 8 floating values for each of the losses.
 
 - HTTP status code 200
-  - Body: int or None
+  - Body: list or None
 
 ### GET `/metrics/val_seqlen_loss`: Returns the last value for the validation Sequence length loss
 
@@ -359,7 +386,7 @@ This endpoint returns the loss with increasing sequence lengths, up until the de
 The response is formated as 8 floating values for each of the losses.
 
 - HTTP status code 200
-  - Body: int or None
+  - Body: list or None
 
 ### GET `/metrics/loop`: Returns the last value for the unnormalized exit probabilities for a looping model
 
@@ -370,3 +397,101 @@ The probabilities are stored in a tensor, so to make them able to be sent they a
 - HTTP status code 200
   - Body: bytes
 
+### GET `/benchmarks/hellaswag`: Returns the last value for the Hellaswag benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None
+
+### GET `/benchmarks/arc_easy`: Returns the last value for the ARC-Easy benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None
+
+### GET `/benchmarks/arc_challenge`: Returns the last value for the ARC-Challenge benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None
+
+### GET `/benchmarks/piqa`: Returns the last value for the PIQA benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None
+
+### GET `/benchmarks/sciq`: Returns the last value for the SciQ benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None
+
+### GET `/benchmarks/winogrande`: Returns the last value for the Winogrande benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None
+
+### GET `/benchmarks/openbookqa`: Returns the last value for the OpenBookQA benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None
+
+### GET `/benchmarks/commonsenseqa`: Returns the last value for the CommonSenseQA benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None
+
+### GET `/benchmarks/mmlu`: Returns the last value for the MMLU benchmark
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+It stores 2 floating point numbers, the first being the accuracy for the task and the second one the normalized accuracy.
+
+- HTTP status code 200
+  - Body: tuple or None

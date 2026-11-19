@@ -469,7 +469,8 @@ class Worker:
                 if benchmark_rate is not None and (epoch % benchmark_rate == 0 or last_epoch):
                     if self.config.training.logging.verbose:
                         self.logger.log("Starting benchmark evaluation...")
-                    results = benchmark_suite.evaluate(model)
+                    with torch.inference_mode():
+                        results = benchmark_suite.evaluate(model)
                     if self.config.training.logging.verbose:
                         s = ""
                         for i, (k, v) in enumerate(results.items()):
