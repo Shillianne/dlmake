@@ -4,6 +4,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from multiprocessing.connection import Connection
 from .utils import Logger, progress_factory
 from typing import Type, cast, Optional
+from .benchmarks import BenchmarkSuite
+from .metrics import MetricsSuite
 from torch.optim import Optimizer
 import torch.distributed as dist
 import torch.nn as nn
@@ -119,12 +121,12 @@ class Worker:
         t = 1000 if self.config.training.logging.time_precision == "ms" else 1
         train_size = self.config.training.train_size
         test_size = self.config.training.test_size
-        train_print_f = progress_factory(self.config.training.logging.train_progress_config)
-        test_print_f = progress_factory(self.config.training.logging.test_progress_config)
+        train_print_f = progress_factory(self.config.training.logging, split="train")
+        test_print_f = progress_factory(self.config.training.logging, split="test")
         test_rate = self.config.training.test_rate if self.config.training.test_rate is not None else 100
         val_rate = self.config.training.val_rate if self.config.training.val_rate is not None else 0
         if self.config.training.use_val:
-            val_print_f = progress_factory(self.config.training.logging.val_progress_config)
+            val_print_f = progress_factory(self.config.training.logging, split="val")
             if self.dataloader.online:
                 train_dataloader, test_dataloader, val_dataloader = SplitGenerator(
                     use_val=True,
@@ -204,16 +206,33 @@ class Worker:
             else:
                 accuracy = self.config.training.accuracy(self.config)
         accuracy.to(self.device)
+        metrics_suite = MetricsSuite(self.config)
+        metrics_suite.to(self.device)
+        benchmark_rate = self.config.training.benchmark_rate
+        benchmark_suite = BenchmarkSuite(
+            self.config,
+            self.savepath,
+            self.device,
+            loss_fn.__class__,
+        )
+        benchmark_suite.prepare()
         val_loss = None
         val_acc = None
 
         try:
             for epoch in range(self.config.training.train_epochs):
-                start = time.time()
                 last_epoch = (epoch == self.config.training.train_epochs - 1)
 
+                test_start = time.time()
                 if (epoch % test_rate == 0 or last_epoch):
                     # model.eval()
+                    total_metrics: dict[str, torch.Tensor] = {}
+                    if self.config.training.logging.metrics.seqlen_loss:
+                        ctx_sizes = torch.linspace(0, self.config.ctx_size, 8 + 1)[1:]
+                        total_seqlen_loss = {i.item(): torch.tensor(0., device=self.device) for i in ctx_sizes}
+                    else:
+                        ctx_sizes = None
+                        total_seqlen_loss = None
                     with torch.inference_mode():
                         test_loss = torch.tensor(0., device=self.device)
                         if self.config.use_looping:
@@ -223,6 +242,10 @@ class Worker:
                         i = 0
                         for i, data in enumerate(test_dataloader):
                             gpu_data = [v.to(self.device) if i != len(data) - 1 else v.to(self.device).contiguous() for i, v in enumerate(data)]
+                            if total_seqlen_loss and ctx_sizes:
+                                seqlen_loss = {i.item(): torch.tensor(0., device=self.device) for i in ctx_sizes}
+                            else:
+                                seqlen_loss = None
                             with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                                 logits: torch.Tensor = model(*gpu_data[:-1])
                                 if self.config.use_looping:
@@ -233,14 +256,32 @@ class Worker:
                                     )
                                 else:
                                     loss: torch.Tensor = loss_fn(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
+                                if seqlen_loss and ctx_sizes:
+                                    for ctx in ctx_sizes:
+                                        seqlen_data = [v[:, -ctx:] for v in gpu_data]
+                                        seqlen_logits = model(*seqlen_data[:-1])
+                                        if self.config.use_looping:
+                                            seqlen_loss[ctx.item()] = loss_fn(
+                                                seqlen_logits, 
+                                                seqlen_data[-1],
+                                                model.unnormalized,
+                                            ) / self.limit
+                                        else:
+                                            seqlen_loss[ctx.item()] = loss_fn(seqlen_logits.view(-1, logits.shape[-1]), seqlen_data[-1].view(-1)) / self.limit
+
                             loss /= self.limit
+                            if total_seqlen_loss and seqlen_loss:
+                                total_seqlen_loss = {k: v + seqlen_loss[k] for k, v in total_seqlen_loss.items()}
                             if self.config.use_looping:
                                 acc: torch.Tensor = accuracy(logits, gpu_data[-1])
                             else:
                                 acc: torch.Tensor = accuracy(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
                             test_loss += loss.detach()
                             test_acc += acc.detach()
+                            metrics = metrics_suite(logits.view(-1, logits.shape[-1]),  gpu_data[-1].view(-1), "test")
+                            total_metrics = {k: v + metrics[k] for k, v in total_metrics.items()}
                         test_acc /= (i + 1)
+                        total_metrics = {k: v / (i + 1) for k, v in total_metrics.items()}
                         if self.ddp:
                             dist.all_reduce(test_loss)
                         if self.master_process:
@@ -250,14 +291,29 @@ class Worker:
                     self.test_acc.append(test_acc)
 
                     if self.master_process:
-                        pipe.send({
+                        obj = {"metrics": {}}
+                        obj["metrics"] = {
                             "test_loss": test_loss.item(),
                             "test_acc": [test_acc.item()] if not self.config.use_looping else test_acc.tolist(),
-                        })
+                        }
+                        if total_seqlen_loss:
+                            obj["metrics"].update({"test_seqlen_loss": [v.item() for v in total_seqlen_loss.values()]})
+                        obj["metrics"].update(total_metrics)
+                        pipe.send(obj)
+
+                test_time = time.time() - test_start
+                val_start = time.time()
 
                 if self.config.training.use_val and (epoch % val_rate == 0 or last_epoch):
                     assert val_dataloader is not None
                     assert val_print_f is not None
+                    total_metrics: dict[str, torch.Tensor] = {}
+                    if self.config.training.logging.metrics.seqlen_loss:
+                        ctx_sizes = torch.linspace(0, self.config.ctx_size, 8 + 1)[1:]
+                        total_seqlen_loss = {i.item(): torch.tensor(0., device=self.device) for i in ctx_sizes}
+                    else:
+                        ctx_sizes = None
+                        total_seqlen_loss = None
                     # model.eval()
                     with torch.inference_mode():
                         val_loss = torch.tensor(0., device=self.device)
@@ -268,6 +324,10 @@ class Worker:
                         i = 0
                         for i, data in enumerate(val_dataloader):
                             gpu_data = [v.to(self.device) if i != len(data) - 1 else v.to(self.device).contiguous() for i, v in enumerate(data)]
+                            if total_seqlen_loss and ctx_sizes:
+                                seqlen_loss = {i.item(): torch.tensor(0., device=self.device) for i in ctx_sizes}
+                            else:
+                                seqlen_loss = None
                             with torch.autocast(device_type=self.device, dtype=torch.bfloat16):
                                 logits: torch.Tensor = model(*gpu_data[:-1])
                                 if self.config.use_looping:
@@ -278,27 +338,53 @@ class Worker:
                                     )
                                 else:
                                     loss: torch.Tensor = loss_fn(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
+                                if seqlen_loss and ctx_sizes:
+                                    for ctx in ctx_sizes:
+                                        seqlen_data = [v[:, -ctx:] for v in gpu_data]
+                                        seqlen_logits = model(*seqlen_data[:-1])
+                                        if self.config.use_looping:
+                                            seqlen_loss[ctx.item()] = loss_fn(
+                                                seqlen_logits, 
+                                                seqlen_data[-1],
+                                                model.unnormalized,
+                                            ) / self.limit
+                                        else:
+                                            seqlen_loss[ctx.item()] = loss_fn(seqlen_logits.view(-1, logits.shape[-1]), seqlen_data[-1].view(-1)) / self.limit
+
                             loss /= self.limit
+                            if total_seqlen_loss and seqlen_loss:
+                                total_seqlen_loss = {k: v + seqlen_loss[k] for k, v in total_seqlen_loss.items()}
                             if self.config.use_looping:
                                 acc: torch.Tensor = accuracy(logits, gpu_data[-1])
                             else:
                                 acc: torch.Tensor = accuracy(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1))
                             val_loss += loss.detach()
                             val_acc += acc.detach()
+                            metrics = metrics_suite(logits.view(-1, logits.shape[-1]), gpu_data[-1].view(-1), "val")
+                            total_metrics = {k: v + metrics[k] for k, v in total_metrics.items()}
                         val_acc /= (i + 1)
+                        total_metrics = {k: v / (i + 1) for k, v in total_metrics.items()}
                         if self.ddp:
                             dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
                         if self.master_process:
                             self.logger.log(val_print_f(loss=val_loss.item(), acc=val_acc, looping=self.config.use_looping))
 
                     if self.master_process:
-                        pipe.send({
+                        obj = {"metrics": {}}
+                        obj["metrics"] = {
                             "val_loss": val_loss.item(),
                             "val_acc": [val_acc.item()] if not self.config.use_looping else val_acc.tolist(),
-                        })
+                        }
+                        if total_seqlen_loss:
+                            obj["metrics"].update({"val_seqlen_loss": [v.item() for v in total_seqlen_loss.values()]})
+                        obj["metrics"].update(total_metrics)
+                        pipe.send(obj)
                 else:
                     val_loss = None
                     val_acc = None
+
+                val_time = time.time() - val_start
+                train_start = time.time()
 
                 losses = torch.tensor(0., device=self.device)
                 if self.config.use_looping:
@@ -308,6 +394,7 @@ class Worker:
                     unnormalized = torch.tensor(0.)
                     accs = torch.tensor(0., device=self.device)
                 total = 0
+                total_metrics: dict[str, torch.Tensor] = {}
                 model.train()
                 optimizer.zero_grad()
 
@@ -334,6 +421,8 @@ class Worker:
                     else:
                         acc: torch.Tensor = accuracy(y_preds.view(-1, y_preds.shape[-1]), gpu_data[-1].view(-1))
                     accs += acc.detach()
+                    metrics = metrics_suite(y_preds.view(-1, y_preds.shape[-1]), gpu_data[-1].view(-1), "val")
+                    total_metrics = {k: v + metrics[k] for k, v in total_metrics.items()}
                     loss.backward()
                     total = i
                 if self.ddp:
@@ -344,19 +433,18 @@ class Worker:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
-                end = time.time()
-                dt = end - start
-                tok_per_sec = (train_dataloader.B * train_dataloader.T * self.limit * self.ddp_world_size) / dt
-                mfu = model.estimate_mfu(self.config.batch_size * self.limit, dt)
+
+                train_time = time.time() - train_start
+                tok_per_sec = (train_dataloader.B * train_dataloader.T * self.limit * self.ddp_world_size) / train_time
+                mfu = model.estimate_mfu(self.config.batch_size * self.limit, train_time)
                 running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
-                acc_time += dt
-                seconds = ((self.config.training.train_epochs * acc_time) / (epoch + 1)) - acc_time  # expectation - evidence
                 lr = scheduler.get_last_lr()[0]
                 self.loss_history.append(losses)
                 self.acc_history.append(accs)
                 self.norm_history.append(norm)
                 
                 accs /= (total + 1)
+                total_metrics = {k: v / (total + 1) for k, v in total_metrics.items()}
                 if self.config.use_looping:
                     unnormalized /= (total + 1)
                 if self.config.training.logging.verbose and self.master_process:
@@ -370,24 +458,58 @@ class Worker:
                         lr=lr,
                         norm=norm,
                         mfu=running_mfu,
-                        time=dt,
+                        time=train_time,
                         scale=t,
                         tokens=tok_per_sec,
-                        eta=seconds,
+                        # eta=seconds,
                         looping=self.config.use_looping,
                     ))
 
+                benchmark_start = time.time()
+                if benchmark_rate is not None and (epoch % benchmark_rate == 0 or last_epoch):
+                    self.logger.log("Starting benchmark evaluation...")
+                    results = benchmark_suite.evaluate(model)
+                    s = ""
+                    for i, (k, v) in enumerate(results.items()):
+                        s += f"{k.capitalize()}: {v[1] * 100:.2f}%"
+                        if i < len(results) - 1:
+                            s += " | "
+                    self.logger.log(s)
+                    
+                    obj = {"benchmarks": results}
+                    pipe.send(obj)
+                benchmark_time = time.time() - benchmark_start
+
+
+                acc_time += (test_time + val_time + train_time + benchmark_time)
+                seconds = (acc_time / (epoch + 1)) * self.config.training.train_epochs - acc_time  # expectation - evidence
+
+
                 if self.master_process:
-                    pipe.send({
+                    obj = {"metrics": {}}
+                    obj["metrics"] = {
                         "loss": losses.item(),
                         "acc": [accs.item()] if not self.config.use_looping else accs.tolist(),
-                        "norm": norm.item(),
-                        "tokps": tok_per_sec,
-                        "mfu": running_mfu,
                         "loop_exit_probs": (unnormalized if self.config.use_looping else None),
                         "epoch": epoch,
-                        "eta": seconds,
-                    })
+                    }
+                    if self.config.training.logging.metrics.lr:
+                        obj["metrics"].update({"lr": lr})
+                    if self.config.training.logging.metrics.norm:
+                        obj["metrics"].update({"norm": norm.item()})
+                    if self.config.training.logging.metrics.tok:
+                        obj["metrics"].update({"tokps": tok_per_sec})
+                    if self.config.training.logging.metrics.mfu:
+                        obj["metrics"].update({"mfu": running_mfu})
+                    if self.config.training.logging.metrics.eta:
+                        obj["metrics"].update({"eta": seconds})
+                    if self.config.training.logging.metrics.time:
+                        obj["metrics"].update({"train_time": train_time})
+                        obj["metrics"].update({"test_time": test_time})
+                        obj["metrics"].update({"val_time": val_time})
+                        obj["metrics"].update({"benchmark_time": benchmark_time})
+                    obj["metrics"].update(total_metrics)
+                    pipe.send(obj)
                 
                 if epoch % self.config.training.checkpoint_rate == 0 and self.master_process and not self.testing:
                     self.__save(
@@ -430,6 +552,12 @@ class Worker:
         finally:
             if self.ddp:
                 destroy_process_group()
+            if hasattr(train_dataloader, "producer"):
+                train_dataloader.producer.close()
+            if hasattr(test_dataloader, "producer"):
+                test_dataloader.producer.close()
+            if val_dataloader is not None and hasattr(train_dataloader, "producer"):
+                val_dataloader.producer.close()
             pipe.send("end")
 
 

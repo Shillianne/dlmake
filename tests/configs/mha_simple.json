@@ -25,8 +25,13 @@
 			"T_max": 150000
 		},
 		"loss": "OuroLoss",
+		"loss_options": {
+			"beta": 0.01
+		},
+		"accuracy": "LoopingAccuracy",
 		"use_fused": false,
 		"compile": true,
+		"gradient_checkpoint": true,
 		"checkpoint_rate": 150,
 		"save_history": true,
 		"use_val": true,
@@ -37,42 +42,21 @@
 		"val_rate": 200,
 		"benchmark_rate": 300,
 		"train_epochs": 150000,
-		"warmup_steps": 1500,
-		"shuffle_data": true,
-		"new": false,
 		"logging": {
 			"verbose": false,
 			"time_precision": "ms",
-			"train_progress_config": {
-				"train_progress": true,
-				"model_progress": true,
-				"lr": true,
-				"norm": true,
-				"mfu": true,
-				"time": true,
-				"tok": true,
-				"eta": true
-			},
-			"test_progress_config": {
-				"train_progress": true,
-				"model_progress": true,
-				"lr": true,
-				"norm": true,
-				"mfu": true,
-				"time": true,
-				"tok": true,
-				"eta": true
-			},
-			"val_progress_config": {
-				"train_progress": true,
-				"model_progress": true,
-				"lr": true,
-				"norm": true,
-				"mfu": true,
-				"time": true,
-				"tok": true,
-				"eta": true
-			}
+			"metrics": [
+				"lr",
+				"norm",
+				"mfu",
+				"time",
+				"tok",
+				"eta",
+				"perplexity",
+				"calibration_error",
+				"topk_accuracy",
+				"seqlen_loss"
+			]
 		}
 	},
 	"feed_forward": {

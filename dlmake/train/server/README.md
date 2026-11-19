@@ -10,23 +10,7 @@
   - Body: `{"status": "ok" }`
   - Explanation: The server is functioning correctly.
 
-### POST `/update`: Updates the values of the training variables
-
-Used internally within the training code to update the values of the training metrics.
-
-**Response format**
-
-- HTTP status code 200
-
-### POST `/loop`: Updates the values of the looping probabilities
-
-Used internally within the training code to update the values of the unnormalized exit probabilities of a looping model.
-
-**Response format**
-
-- HTTP status code 200
-
-### GET `/loss`: Returns the last value for the training loss
+### GET `/metrics/loss`: Returns the last value for the training loss
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -35,7 +19,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: float or None
 
-### GET `/acc`: Returns the last value for the training accuracy
+### GET `/metrics/acc`: Returns the last value for the training accuracy
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -44,7 +28,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: float or None
 
-### GET `/test_loss`: Returns the last value for the testing loss
+### GET `/metrics/test_loss`: Returns the last value for the testing loss
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -53,7 +37,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: float or None
 
-### GET `/test_acc`: Returns the last value for the testing accuracy
+### GET `/metrics/test_acc`: Returns the last value for the testing accuracy
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -62,7 +46,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: float or None
 
-### GET `/val_loss`: Returns the last value for the validation loss
+### GET `/metrics/val_loss`: Returns the last value for the validation loss
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -71,7 +55,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: float or None
 
-### GET `/val_acc`: Returns the last value for the validation accuracy
+### GET `/metrics/val_acc`: Returns the last value for the validation accuracy
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -80,7 +64,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: float or None
 
-### GET `/norm`: Returns the last value for the gradient norm
+### GET `/metrics/norm`: Returns the last value for the gradient norm
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -89,7 +73,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: float or None
 
-### GET `/tkps`: Returns the last value or the training tokens per second
+### GET `/metrics/tkps`: Returns the last value or the training tokens per second
 
 Depending on whether there is a value pending to be read, the endpoint will either return the int value or None.
 
@@ -98,7 +82,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: int or None
 
-### GET `/mfu`: Returns the last value for the model FLOPS utilization (MFU)
+### GET `/metrics/mfu`: Returns the last value for the model FLOPS utilization (MFU)
 
 Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
 
@@ -107,7 +91,7 @@ Depending on whether there is a value pending to be read, the endpoint will eith
 - HTTP status code 200
   - Body: float or None
 
-### GET `/vram`: Returns the last value for the used GPU VRAM
+### GET `/metrics/vram`: Returns the last value for the used GPU VRAM
 
 Depending on whether there is a value pending to be read, the endpoint will either return the int value or None.
 The value is measured in MiB.
@@ -117,7 +101,267 @@ The value is measured in MiB.
 - HTTP status code 200
   - Body: int or None
 
-### GET `/loop`: Returns the last value for the unnormalized exit probabilities for a looping model
+### GET `/metrics/usage`: Returns the last value for the usage of the GPU
+
+Depending on whether there is a value pending to be read, the endpoint will either return the int value or None.
+The value is measured in percentage.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/epoch`: Returns the last value for the current training epoch
+
+Depending on whether there is a value pending to be read, the endpoint will either return the int value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/eta`: Returns the last value for the estimation of the reamining training time
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/lr`: Returns the last value for the learning rate
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/time`: Returns the last value for the current iteration's duration
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/precision`: Returns the last value for the training precision
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/recall`: Returns the last value for the training recall
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/specificity`: Returns the last value for the training specificity
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/f1score`: Returns the last value for the training F-1 Score
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/perplexity`: Returns the last value for the training perplexity
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/calibration_error`: Returns the last value for the training Calibration Error
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_precision`: Returns the last value for the test precision
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_recall`: Returns the last value for the test recall
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_specificity`: Returns the last value for the test_specificity
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_f1score`: Returns the last value for the test F-1 Score
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_perplexity`: Returns the last value for the test perplexity
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_calibration_error`: Returns the last value for the test Calibration Error
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_precision`: Returns the last value for the validation precision
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_recall`: Returns the last value for the validation recall
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_specificity`: Returns the last value for the validation specificity
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_f1score`: Returns the last value for the validation F-1 Score
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_perplexity`: Returns the last value for the validation perplexity
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_calibration_error`: Returns the last value for the validation Calibration Error
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_topk_acc`: Returns the last value for the test top-K Accuracy
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+The response is formated as 3 floating values:
+    - top-5 Accuracy
+    - top-10 Accuracy
+    - top-50 Accuracy
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_topk_acc`: Returns the last value for the validation top-K Accuracy
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+
+**Response format**
+
+The response is formated as 3 floating values:
+    - top-5 Accuracy
+    - top-10 Accuracy
+    - top-50 Accuracy
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/test_seqlen_loss`: Returns the last value for the test Sequence length loss
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+This endpoint returns the loss with increasing sequence lengths, up until the default context size of the model.
+
+**Response format**
+
+The response is formated as 8 floating values for each of the losses.
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/val_seqlen_loss`: Returns the last value for the validation Sequence length loss
+
+Depending on whether there is a value pending to be read, the endpoint will either return the float value or None.
+This endpoint returns the loss with increasing sequence lengths, up until the default context size of the model.
+
+**Response format**
+
+The response is formated as 8 floating values for each of the losses.
+
+- HTTP status code 200
+  - Body: int or None
+
+### GET `/metrics/loop`: Returns the last value for the unnormalized exit probabilities for a looping model
 
 The probabilities are stored in a tensor, so to make them able to be sent they are converted into a stream of bytes. On the receiving side, the byte stream should be unpickled and each element of the resulting list should be loaded with torch.
 

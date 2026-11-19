@@ -6,9 +6,26 @@ import torch
 import os
 
 
+class Producer(ABC):
+    DATA_DIR = ""
+
+    @abstractmethod
+    def close(self, timeout: int = 30):
+        raise NotImplementedError("close method not implemented.")
+
+    @abstractmethod
+    def request(self, split: str, assigned_tokens: int, num_tokens: int):
+        raise NotImplementedError("request method not implemented.")
+
+    @abstractmethod
+    def start(self):
+        raise NotImplementedError("start method not implemented.")
+
+
 class BaseDataLoader(ABC):
     online: bool
     total_tokens: int
+    _producer: Optional[Producer] = None
 
     def __init__(
         self,
@@ -70,6 +87,7 @@ class BaseDataLoader(ABC):
 class OfflineDataLoader(BaseDataLoader):
     online = False
     total_tokens = -1
+    _producer: Optional[Producer] = None
 
     def load_tokens(self, min: int, max: int) -> torch.Tensor:
         raise NotImplementedError("Child classes of OfflineDataLoader have to implement this method")
@@ -81,6 +99,7 @@ class OfflineDataLoader(BaseDataLoader):
 class OnlineDataLoader(BaseDataLoader):
     online = True
     total_tokens = -1
+    _producer: Optional[Producer] = None
 
     def load_tokens(self, num_tokens: int) -> torch.Tensor:
         raise NotImplementedError("Child classes of OnlineBaseDataLoader have to implement this method")

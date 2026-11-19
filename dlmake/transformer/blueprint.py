@@ -195,7 +195,7 @@ class BaseTransformer(Transformer):
                     mask = mask[:T, :T]
                 for block in self.blocks[min_idx:max_idx]:
                     if self.config.training.gradient_checkpoint:
-                        x = checkpoint(block, x, indices, start_pos, mask)
+                        x = checkpoint(block, x, indices, start_pos, mask, use_reentrant=False)
                     else:
                         x = block(x, indices, start_pos=start_pos, mask=mask)
                 if self.training:
@@ -234,7 +234,7 @@ class BaseTransformer(Transformer):
         else:
             for block in self.blocks:
                 if self.config.training.gradient_checkpoint:
-                    x = checkpoint(block, x, indices, start_pos, mask)
+                    x = checkpoint(block, x, indices, start_pos, mask, use_reentrant=False)
                 else:
                     x = block(x, indices, start_pos=start_pos, mask=mask)
 

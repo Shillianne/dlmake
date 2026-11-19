@@ -34,9 +34,6 @@ params = {
     "val_rate": ((None.__class__, int), None),
     "benchmark_rate": ((None.__class__, int), None),
     "train_epochs": (int, 12000),
-    "warmup_steps": (int, 150),
-    "shuffle_data": (bool, False),
-    "new": (bool, True),
     "server": ServerSettings,
     "logging": LoggingSettings,
 }
@@ -67,9 +64,6 @@ class TrainingSettings:
     val_rate: Optional[int]
     benchmark_rate: Optional[int]
     train_epochs: int
-    warmup_steps: int
-    shuffle_data: bool
-    new: bool
     server: ServerSettings
     logging: LoggingSettings
 
