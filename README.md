@@ -55,4 +55,4 @@ In most cases, you will want to make use of the `Config` class, as that should m
 
 For any other doubts about how to use the library, look at the [examples](https://github.com/Shillianne/dlmake/blob/main/examples/README.md) page.
 
-The training server is can be set with it's corresponding configuration parameter. To make use of the server, refer to the [server API](https://github.com/Shillianne/dlmake/blob/main/dlmake/train/server/README.md) documentation to understand how the endpoints are exposed.
+The training server is can be set with it's corresponding configuration parameter. To make use of the server, refer to the [server API](https://github.com/Shillianne/dlmake/blob/main/dlmake/train/server/SERVER.md) documentation to understand how the endpoints are exposed.
