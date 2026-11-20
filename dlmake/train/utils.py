@@ -1,5 +1,5 @@
 from torch.nn.parallel import DistributedDataParallel as DDP
-from dlmake.config import ProgressConfig
+from dlmake.config import LoggingSettings
 from dlmake import Config, Transformer
 import matplotlib.pyplot as plt
 from datetime import timedelta
@@ -10,23 +10,21 @@ import torch
 import os
 import re
 
-def progress_factory(config: ProgressConfig):
-    train_progress = config.train_progress
-    model_progress = config.model_progress
-    lr = config.lr
-    norm = config.norm
-    mfu = config.mfu
-    time = config.time
-    tok = config.tok
-    eta = config.eta
+def progress_factory(config: LoggingSettings, split: str):
+    # train_progress = config.train_progress
+    # model_progress = config.model_progress
+    lr = config.metrics.lr and split == "train"
+    norm = config.metrics.norm and split == "train"
+    mfu = config.metrics.mfu and split == "train"
+    time = config.metrics.time and split == "train"
+    tok = config.metrics.tok and split == "train"
+    eta = config.metrics.eta and split == "train"
     parameters: list[inspect.Parameter] = []
 
-    if train_progress:
-        parameters.append(inspect.Parameter("epoch", inspect.Parameter.KEYWORD_ONLY, annotation=int))
-        parameters.append(inspect.Parameter("total_epochs", inspect.Parameter.KEYWORD_ONLY, annotation=int))
-    if model_progress:
-        parameters.append(inspect.Parameter("cur_model", inspect.Parameter.KEYWORD_ONLY, annotation=int))
-        parameters.append(inspect.Parameter("total_models", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+    parameters.append(inspect.Parameter("epoch", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+    parameters.append(inspect.Parameter("total_epochs", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+    parameters.append(inspect.Parameter("cur_model", inspect.Parameter.KEYWORD_ONLY, annotation=int))
+    parameters.append(inspect.Parameter("total_models", inspect.Parameter.KEYWORD_ONLY, annotation=int))
     if lr:
         parameters.append(inspect.Parameter("lr", inspect.Parameter.KEYWORD_ONLY, annotation=float))
     if norm:
@@ -45,9 +43,9 @@ def progress_factory(config: ProgressConfig):
 
     def inner(loss: torch.Tensor | Number, acc: torch.Tensor, **kwargs):
         blocks = []
-        if model_progress and "cur_model" in kwargs.keys() and "total_models" in kwargs.keys():
+        if "cur_model" in kwargs.keys() and "total_models" in kwargs.keys() and kwargs["total_models"] > 1:
             blocks.append(f"[{kwargs['cur_model']}/{kwargs['total_models']}]")
-        if train_progress and "epoch" in kwargs.keys() and "total_epochs" in kwargs.keys():
+        if "epoch" in kwargs.keys() and "total_epochs" in kwargs.keys():
             blocks.append(f"[{kwargs['epoch']:>{len(str(kwargs['total_models']))}}/{kwargs['total_epochs']}]")
         blocks.append(f"Average Loss: {loss:.3f}")
         if "looping" in kwargs.keys() and kwargs["looping"]:

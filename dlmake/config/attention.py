@@ -1,8 +1,24 @@
+from importlib import import_module
 from dataclasses import dataclass
 from typing import Optional
 import torch.nn as nn
+import copy
 
 
+state_params = {
+    "attention_method": (nn.Module,),
+    "use_rope": (bool, False),
+    "use_qknorm": (bool, True),
+    "qk_norm_type": (nn.Module, nn.RMSNorm),
+    "n_kv_groups": ((None.__class__, int), None),
+    "q_head_dim": ((None.__class__, int), None),
+    "v_head_dim": ((None.__class__, int), None),
+    "kv_lora_dim": ((None.__class__, int), None),
+    "flash": (bool, False),
+    # "doc_aware": (bool, False),
+    "dropout": (float, 0.0),
+    "bias": (bool, True),
+}
 
 
 @dataclass
@@ -43,24 +59,23 @@ class AttentionSettings:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in AttentionSettings.")
         values = {}
+        attention_module = import_module("dlmake.transformer.attention")
+        nn_module = import_module("torch.nn")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "attention_method":
                     if value in (names := [att.__name__ for att in attention_types]):
-                        exec(f"from ..transformer.attention import {value}")
-                        exec(f"values['{param}'] = {value}")
+                        values[param] = getattr(attention_module, value)
                     elif value is None:
                         values[param] = MultiHeadAttention
                     else:
                         raise TypeError(f"The requested attention method ({value}) is not one of the available types ({names}).")
                 elif param == "qk_norm_type":
                     try:
-                        exec(f"from torch.nn import {value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 else:
                     kind = params[param][0]
                     # assert isinstance(kwargs[param], kind), f"Attribute '{param}' isn't of the expected type {kind}"
@@ -77,3 +92,21 @@ class AttentionSettings:
                 values[param] = params[param].from_dict()
 
         return cls(**values)
+
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(state_params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = state_params[k].load_state_dict(v)
+        return cls(**d)

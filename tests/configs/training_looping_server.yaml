@@ -1,7 +1,7 @@
 name: TrainingTestNoServer
-ctx_size: 32
-max_ctx_size: 32
-vocab_size: 1024
+ctx_size: 256
+max_ctx_size: 256
+vocab_size: 51200
 embed_dim: 16
 nhead: 4
 nlayers: 8
@@ -14,9 +14,8 @@ prenorm: false
 postnorm: true
 use_looping: true
 training:
-  tokens_per_epoch: 2048
-  loaded_tokens: 8192
-  max_lr: 1.0e-4
+  tokens_per_epoch: 4096
+  loaded_tokens: 16384
   min_lr: 1.0e-7
   optimizer: AdamW
   scheduler: OneCycleLR
@@ -24,6 +23,8 @@ training:
     max_lr: 1.0e-3
     total_steps: 25
   loss: OuroLoss
+  loss_options:
+    beta: 0.01
   accuracy: LoopingAccuracy
   use_fused: true
   compile: true
@@ -34,25 +35,24 @@ training:
   test_size: 0.2
   val_size: 0.0
   test_rate: 100
+  benchmark_rate: 10
   train_epochs: 25
-  warmup_steps: 1500
-  shuffle_data: true
-  new: true
   server:
     host: 127.0.0.1
     port: 21321
   logging:
     verbose: true
     time_precision: ms
-    train_progress_config:
-      train_progress: true
-      model_progress: false
-      lr: true
-      norm: true
-      mfu: true
-      time: true
-      tok: true
-      eta: true
+    metrics:
+      - lr
+      - norm
+      - mfu
+      - time
+      - tok
+      - eta
+    benchmarks:
+      - hellaswag
+      - mmlu
 feed_forward:
   linear_scale: 4
   nlinear: GELU

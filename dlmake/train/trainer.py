@@ -23,8 +23,52 @@ stats = [
     "tkps",
     "mfu",
     "vram_usage",
+    "gpu_usage",
     "epoch",
     "eta",
+    "lr",
+    "train_time",
+    "test_time",
+    "val_time",
+    "benchmark_time",
+    "train_precision",
+    "train_recall",
+    "train_specificity",
+    "train_f1score",
+    "train_perplexity",
+    "train_calibration_error",
+    "test_precision",
+    "test_recall",
+    "test_specificity",
+    "test_f1score",
+    "test_perplexity",
+    "test_calibration_error",
+    "val_precision",
+    "val_recall",
+    "val_specificity",
+    "val_f1score",
+    "val_perplexity",
+    "val_calibration_error",
+    "test_top5_acc",
+    "test_top10_acc",
+    "test_top50_acc",
+    "val_top5_acc",
+    "val_top10_acc",
+    "val_top50_acc",
+    "test_seqlen_loss",
+    "val_seqlen_loss",
+]
+
+benchmarks = [
+    "hellaswag",
+    "arc_easy",
+    "arc_challenge",
+    "piqa",
+    "sciq",
+    "winogrande",
+    "openbookqa",
+    "commonsenseqa",
+    "mmlu",
 ]
 
 
@@ -36,7 +80,6 @@ class Trainer:
         config_path: str,
         datapath: str,
         savepath: str,
-        benchmarks: list[Benchmark],
         device: str,
         **kwargs
     ):
@@ -120,6 +163,7 @@ class Trainer:
             logger = Logger(os.path.join(self.savepath, save_name, "log.log"), new=exists)
         else:
             logger = Logger("", new=True)
+        self.savepath = os.path.join(self.savepath, save_name)
     
         with torch.device("meta"):
             model = self.model_class(self.config)
@@ -165,6 +209,11 @@ class Trainer:
                         connected = True
             p3 = ctx.Process(target=runner.vram_usage, args=(stats,))
             p3.start()
+            if torch.cuda.is_available():
+                p4 = ctx.Process(target=runner.gpu_usage, args=(stats,))
+                p4.start()
+            else:
+                p4 = None
         p1.start()
         while True:
             content: dict = main2work.recv()
@@ -173,29 +222,42 @@ class Trainer:
                     p3.terminate()  # type: ignore
                     p3.join()  # type: ignore
                     p3.close()  # type: ignore
+                    if p4:  # type: ignore
+                        p4.terminate()
+                        p4.join()
+                        p4.close()
                     p2.terminate()  # type: ignore
                     p2.join()  # type: ignore
                     p2.close()  # type: ignore
                     break
                 else:
-                    response = requests.post(
-                        f"http://{self.config.training.server.host}:{self.config.training.server.port}/update",
-                        json={k: (content[k] if k in content.keys() else None) for k in stats}
-                    )
-                    if self.config.use_looping and "loop_exit_probs" in content.keys():
-                        buffer = io.BytesIO()    
-                        torch.save(content["loop_exit_probs"], buffer)
-                        buffer.seek(0)
-                        r2 = requests.post(
-                            f"http://{self.config.training.server.host}:{self.config.training.server.port}/loop",
-                            data=buffer,
-                            headers={"Content-Type": "application/octet-stream"}
+                    if "metrics" in content.keys():
+                        response = requests.post(
+                            f"http://{self.config.training.server.host}:{self.config.training.server.port}/metrics/update",
+                            json={k: (content["metrics"][k] if k in content["metrics"].keys() else None) for k in stats}
                         )
-                        status = r2.status_code != 200
-                        content = r2.json()
+                        if self.config.use_looping and "loop_exit_probs" in content["metrics"].keys():
+                            buffer = io.BytesIO()    
+                            torch.save(content["metrics"]["loop_exit_probs"], buffer)
+                            buffer.seek(0)
+                            r2 = requests.post(
+                                f"http://{self.config.training.server.host}:{self.config.training.server.port}/loop",
+                                data=buffer,
+                                headers={"Content-Type": "application/octet-stream"}
+                            )
+                            status = r2.status_code != 200
+                            content = r2.json()
+                        else:
+                            status = False
+                            content = {}
                     else:
+                        response = requests.post(
+                            f"http://{self.config.training.server.host}:{self.config.training.server.port}/benchmarks/update",
+                            json={k: (content["benchmarks"][k] if k in content["benchmarks"].keys() else None) for k in benchmarks}
+                        )
                         status = False
                         content = {}
+
                     if response.status_code != 200 or status:
                         logger.error("Trainer: Couldn't send train metadata to server.")
                         if status:
@@ -206,6 +268,10 @@ class Trainer:
                         p3.terminate()  # type: ignore
                         p3.join()  # type: ignore
                         p3.close()  # type: ignore
+                        if p4:  # type: ignore
+                            p4.terminate()
+                            p4.join()
+                            p4.close()
                         p2.terminate()  # type: ignore
                         p2.join()  # type: ignore
                         p2.close()  # type: ignore

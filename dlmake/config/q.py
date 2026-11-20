@@ -1,5 +1,6 @@
 from typing import Literal, Optional
 from dataclasses import dataclass
+import copy
 
 
 params = {
@@ -39,6 +40,23 @@ class QSettings:
         cls.__check(obj)
         return obj
 
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = params[k].load_state_dict(v)
+        return cls(**d)
 
     @staticmethod
     def __check(obj: "QSettings"):

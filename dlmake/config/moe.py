@@ -1,6 +1,8 @@
 from typing import Literal, get_args
+from importlib import import_module
 from dataclasses import dataclass
 from torch import nn
+import copy
 
 
 params = {
@@ -39,16 +41,15 @@ class MoESettings:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in MoESettings.")
         values = {}
+        nn_module = import_module("torch.nn")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "nlinear":
                     try:
-                        exec(f"nn.{value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = nn.{value}")
                 elif param == "score_function":
                     if value not in get_args(params[param][0]):
                         raise ValueError(f"Attribute 'score_function' does not support a value of '{value}'.")
@@ -69,3 +70,21 @@ class MoESettings:
                 values[param] = params[param].from_dict()
 
         return cls(**values)
+
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = params[k].load_state_dict(v)
+        return cls(**d)

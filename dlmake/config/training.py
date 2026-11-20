@@ -4,9 +4,11 @@ from .general_params import GeneralParams
 from torchmetrics import Accuracy, Metric
 from torch.optim import Optimizer, AdamW
 from .logging import LoggingSettings
+from importlib import import_module
 from .server import ServerSettings
 from dataclasses import dataclass
 import torch.nn as nn
+import copy
 
 
 params = {
@@ -22,6 +24,7 @@ params = {
     "accuracy": ((nn.Module, Metric, str), Accuracy),
     "use_fused": (bool, True),
     "compile": (bool, False),
+    "gradient_checkpoint": (bool, False),
     "checkpoint_rate": (int, 10),
     "save_history": (bool, False),
     "use_val": (bool, False),
@@ -32,9 +35,6 @@ params = {
     "val_rate": ((None.__class__, int), None),
     "benchmark_rate": ((None.__class__, int), None),
     "train_epochs": (int, 12000),
-    "warmup_steps": (int, 150),
-    "shuffle_data": (bool, False),
-    "new": (bool, True),
     "server": ServerSettings,
     "logging": LoggingSettings,
 }
@@ -54,6 +54,7 @@ class TrainingSettings:
     accuracy: nn.Module | Metric | Literal["custom"]
     use_fused: bool
     compile: bool
+    gradient_checkpoint: bool
     checkpoint_rate: int
     save_history: bool
     use_val: bool
@@ -64,9 +65,6 @@ class TrainingSettings:
     val_rate: Optional[int]
     benchmark_rate: Optional[int]
     train_epochs: int
-    warmup_steps: int
-    shuffle_data: bool
-    new: bool
     server: ServerSettings
     logging: LoggingSettings
 
@@ -76,6 +74,12 @@ class TrainingSettings:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in TrainingSettings.")
         values = {}
+        torch_optim_module = import_module("torch.optim")
+        bandb_optim_module = import_module("bitsandbytes.optim")
+        scheduler_module = import_module("torch.optim.lr_scheduler")
+        nn_module = import_module("torch.nn")
+        dlmake_module = import_module("dlmake")
+        metrics_module = import_module("torchmetrics")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
@@ -84,56 +88,43 @@ class TrainingSettings:
                         values[param] = value
                     else:
                         try:
-                            exec(f"from torch.optim import {kwargs[param]}")
+                            values[param] = getattr(torch_optim_module, value)
                         except Exception:
                             try:
-                                exec(f"from bitsandbytes.optim import {kwargs[param]}")
+                                values[param] = getattr(bandb_optim_module, value)
                             except Exception as e:
                                 raise e
-                            else:
-                                exec(f"values['{param}'] = {kwargs[param]}")
-                        else:
-                            exec(f"values['{param}'] = {kwargs[param]}")
                 elif param == "scheduler":
                     if value == "custom":
                         values[param] = value
                     else:
                         try:
-                            exec(f"from torch.optim.lr_scheduler import {kwargs[param]}")
+                            values[param] = getattr(scheduler_module, value)
                         except Exception as e:
                             raise e
-                        else:
-                            exec(f"values['{param}'] = {kwargs[param]}")
                 elif param == "loss":
                     if param == "custom":
                         values[param] = value
                     else:
                         try:
-                            exec(f"from torch.nn import {value}")
+                            values[param] = getattr(nn_module, value)
                         except Exception:
                             try:
-                                exec(f"from dlmake import {value}")
+                                values[param] = getattr(dlmake_module, value)
                             except Exception as e:
                                 raise e
-                            else:
-                                exec(f"values['{param}'] = {value}")
-                        else:
-                            exec(f"values['{param}'] = {value}")
                 elif param == "accuracy":
                     if param == "custom":
                         values[param] = value
                     else:
                         try:
-                            exec(f"from torchmetrics import {value}")
+                            values[param] = getattr(metrics_module, value)
                         except Exception as e:
                             try:
-                                exec(f"from dlmake import {value}")
+                                values[param] = getattr(dlmake_module, value)
+                                # exec(f"from dlmake import {value}")
                             except Exception as e:
                                 raise e
-                            else:
-                                exec(f"values['{param}'] = {value}")
-                        else:
-                            exec(f"values['{param}'] = {value}")
                 else:
                     kind = params[param][0]
                     # assert isinstance(kwargs[param], kind), f"Attribute '{param}' isn't of the expected type {kind}"
@@ -150,3 +141,21 @@ class TrainingSettings:
                 values[param] = params[param].from_dict()
 
         return cls(**values)
+
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = params[k].load_state_dict(v)
+        return cls(**d)
