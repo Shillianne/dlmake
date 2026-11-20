@@ -7,3 +7,7 @@ class FloatResponseModel(BaseModel):
 
 class IntegerResponseModel(BaseModel):
     value: int
+
+class SeqLenResponseModel(BaseModel):
+    ctxs: list[int]
+    losses: list[float]

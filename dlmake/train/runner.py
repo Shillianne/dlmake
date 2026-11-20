@@ -35,7 +35,19 @@ class Runner:
                 used = int(subprocess.check_output(["tail", "-n", "1"], stdin=p3.stdout).decode().strip())
 
             requests.post(
-                f"http://{self.config.training.server.host}:{self.config.training.server.port}/update",
+                f"http://{self.config.training.server.host}:{self.config.training.server.port}/metrics/update",
                 json={k: (used if k == "vram_used" else None) for k in stats}
+            )
+            time.sleep(self.config.training.server.vram_heartbeat)
+
+    def gpu_usage(self, stats: list[str]):
+        while True:
+            used = int(subprocess.check_output([
+                "nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader"
+            ]).decode().strip().split(" ")[0])
+
+            requests.post(
+                f"http://{self.config.training.server.host}:{self.config.training.server.port}/metrics/update",
+                json={k: (used if k == "gpu_usage" else None) for k in stats}
             )
             time.sleep(self.config.training.server.vram_heartbeat)

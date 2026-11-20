@@ -16,22 +16,24 @@ class OuroExitGate(nn.Module):
 
 
 class OuroLoss(nn.Module):
-    def __init__(self, beta: float = 0.1, dist: Literal["uniform"] = "uniform") -> None:
+    def __init__(self, beta: float = 0.1, dist: Literal["uniform"] = "uniform", reduction: Literal["mean", "none"] = "mean") -> None:
         super(OuroLoss, self).__init__()
 
-        self.ce = nn.CrossEntropyLoss()
+        self.ce = nn.CrossEntropyLoss(reduction=reduction)
+        # self.kl = nn.KLDivLoss(reduction="batchmean" if reduction != "none" else reduction)
         self.kl = nn.KLDivLoss(reduction="batchmean")
         self.beta = beta
         self.dist = dist
+        self.reduction = reduction
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor, probs: torch.Tensor):
         if self.dist == "uniform":
             dist = torch.ones_like(probs[0]) / probs.size(0)
         else:
             raise ValueError(f"'{self.dist}' is not one of the available values for the prior distribution.")
-        loss = torch.tensor(0., dtype=pred.dtype, device=pred.device)
+        loss = torch.tensor(0., dtype=pred.dtype, device=pred.device) if self.reduction != "none" else torch.zeros(probs[0].nelement(), dtype=pred.dtype, device=pred.device)
         for y, u in zip(pred, probs):
-            loss += self.ce((y * u).view(-1, y.shape[-1]), target.view(-1)) - self.beta * self.kl(torch.log(u + 1e-7), dist)
+            loss += self.ce((y * u).view(-1, y.shape[-1]), target.view(-1)) - self.beta * torch.abs(self.kl(torch.log(u + 1e-7), dist))
         return loss
 
 

@@ -1,2 +1,2 @@
 from .config import Config
-from .logging import ProgressConfig
+from .logging import LoggingSettings

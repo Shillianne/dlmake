@@ -1,11 +1,14 @@
 from .feedforward import FeedForwardSettings
+from .cc import ContextCompressionSettings
 from .attention import AttentionSettings
 from .training import TrainingSettings
 from .looping import LoopingSettings
+from importlib import import_module
 from dataclasses import dataclass
 from yaml import load, Loader
 import torch.nn as nn
 import torch
+import copy
 import json
 
 
@@ -29,6 +32,7 @@ params = {
     "feed_forward": FeedForwardSettings,
     "attention": AttentionSettings,
     "looping": LoopingSettings,
+    "cc": ContextCompressionSettings,
 }
 
 
@@ -53,6 +57,7 @@ class Config:
     feed_forward: FeedForwardSettings
     attention: AttentionSettings
     looping: LoopingSettings
+    cc: ContextCompressionSettings
 
     @classmethod
     def from_json(cls, filename: str):
@@ -62,23 +67,21 @@ class Config:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in Config.")
         values = {}
+        torch_module = import_module("torch")
+        nn_module = import_module("torch.nn")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "dtype":
                     try:
-                        exec(f"from torch import {value}")
+                        values[param] = getattr(torch_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 elif param == "norm":
                     try:
-                        exec(f"from torch.nn import {value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 else:
                     kind = params[param][0]
                     # assert isinstance(kwargs[param], kind), f"Attribute '{param}' isn't of the expected type {kind}"
@@ -104,23 +107,21 @@ class Config:
         if (diff := set(keys).difference(set(params.keys()))):
             raise KeyError(f"Attribute '{list(diff)[0]}' not found in LoggingSettings.")
         values = {}
+        torch_module = import_module("torch")
+        nn_module = import_module("torch.nn")
         for param in keys:
             value = kwargs[param]
             if isinstance(params[param], tuple):
                 if param == "dtype":
                     try:
-                        exec(f"from torch import {value}")
+                        values[param] = getattr(torch_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 elif param == "norm":
                     try:
-                        exec(f"from torch.nn import {value}")
+                        values[param] = getattr(nn_module, value)
                     except Exception as e:
                         raise e
-                    else:
-                        exec(f"values['{param}'] = {value}")
                 else:
                     kind = params[param][0]
                     # assert isinstance(kwargs[param], kind), f"Attribute '{param}' isn't of the expected type {kind}"
@@ -139,11 +140,23 @@ class Config:
         cls.check(values)
         return cls(**values)
 
-    # @staticmethod
-    # def __check(obj: "Config"):
-    #     assert obj.max_ctx_size >= obj.ctx_size, "Maximum ctx size has to be at least equal to the ctx size"
-    #     assert obj.max_batch_size >= obj.batch_size, "Maximum batch size has to be at least equal to the batch size"
-    #     assert obj.prenorm or obj.postnorm, "At least one of prenorm or postnorm have to be true"
+    def state_dict(self):
+        d = self.__dict__
+        state = {}
+        for k, v in d.items():
+            if isinstance(params[k], tuple):
+                state[k] = v
+            else:
+                state[k] = v.state_dict()
+        return state
+
+    @classmethod
+    def load_state_dict(cls, state: dict):
+        d = copy.deepcopy(state)
+        for k, v in state.items():
+            if isinstance(v, dict):
+                d[k] = params[k].load_state_dict(v)
+        return cls(**d)
 
     @staticmethod
     def check(values: dict):
